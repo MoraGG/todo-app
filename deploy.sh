@@ -54,9 +54,16 @@ read_config() {
     fi
     echo ""
 
-    # 端口
-    read -p "$(echo -e ${YELLOW}'请输入应用监听端口（默认 3000）: '${NC})" APP_PORT
-    APP_PORT=${APP_PORT:-3000}
+    # 对外端口（Nginx 监听，用户浏览器访问）
+    read -p "$(echo -e ${YELLOW}'请输入对外访问端口（如 8002，即通过 https://域名:端口 访问）: '${NC})" EXTERNAL_PORT
+    if [[ -z "$EXTERNAL_PORT" ]]; then
+        error "对外端口不能为空"
+    fi
+    echo ""
+
+    # 内部端口（Node.js 监听 127.0.0.1，自动生成避免冲突）
+    INTERNAL_PORT=$((EXTERNAL_PORT + 10000))
+    info "内部端口自动分配: $INTERNAL_PORT (仅服务器内部通信，外部不可访问)"
     echo ""
 
     # 管理员密码
@@ -92,7 +99,8 @@ read_config() {
     # 确认
     separator
     echo -e "  域名:     ${GREEN}$DOMAIN${NC}"
-    echo -e "  端口:     ${GREEN}$APP_PORT${NC}"
+    echo -e "  对外端口: ${GREEN}$EXTERNAL_PORT (HTTPS)${NC}"
+    echo -e "  内部端口: ${GREEN}$INTERNAL_PORT (内部)${NC}"
     echo -e "  HTTPS:    ${GREEN}$([ "$SETUP_HTTPS" = "y" ] && echo "是" || echo "否")${NC}"
     echo -e "  安装目录: ${GREEN}$APP_DIR${NC}"
     separator
@@ -181,10 +189,10 @@ deploy_app() {
 configure_env() {
     info "配置环境变量..."
     cat > "$APP_DIR/.env" << EOF
-PORT=$APP_PORT
+PORT=$INTERNAL_PORT
 ADMIN_PASSWORD=$ADMIN_PASS
 USER_PASSWORD=$USER_PASS
-ALLOWED_ORIGINS=https://$DOMAIN,http://$DOMAIN
+ALLOWED_ORIGINS=https://$DOMAIN:$EXTERNAL_PORT,http://$DOMAIN:$EXTERNAL_PORT
 NODE_ENV=production
 EOF
     chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
@@ -211,10 +219,10 @@ configure_pm2() {
     sudo -u "$APP_USER" \
         HOME=/home/"$APP_USER" \
         NODE_ENV=production \
-        PORT=$APP_PORT \
+        PORT=$INTERNAL_PORT \
         ADMIN_PASSWORD=$ADMIN_PASS \
         USER_PASSWORD=$USER_PASS \
-        ALLOWED_ORIGINS="https://$DOMAIN,http://$DOMAIN" \
+        ALLOWED_ORIGINS="https://$DOMAIN:$EXTERNAL_PORT,http://$DOMAIN:$EXTERNAL_PORT" \
         pm2 start server.js --name "$PM2_NAME" --node-args="--max-old-space-size=256"
 
     sudo -u "$APP_USER" HOME=/home/"$APP_USER" pm2 save
@@ -229,7 +237,8 @@ configure_nginx() {
 
     cat > /etc/nginx/sites-available/"$APP_NAME" << EOF
 server {
-    listen 80;
+    listen $EXTERNAL_PORT;
+    listen [::]:$EXTERNAL_PORT;
     server_name $DOMAIN;
 
     # 安全头
@@ -242,7 +251,7 @@ server {
 
     # 代理到 Node.js 应用
     location / {
-        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_pass http://127.0.0.1:$INTERNAL_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -266,7 +275,7 @@ server {
 
     # 静态资源缓存
     location ~* \.(html|css|js|ico|png|jpg|svg)$ {
-        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_pass http://127.0.0.1:$INTERNAL_PORT;
         expires 1h;
         add_header Cache-Control "public, immutable";
     }
@@ -295,29 +304,13 @@ configure_https() {
             # 证书已存在，直接写入 todo-app 的 nginx 配置，不再让 certbot --nginx 扫描所有 server 块
             info "检测到已存在证书: $CERT_DIR，直接写入配置"
 
-            # 在 80 server 块后面追加 443，并加入 80 重定向
+            # 直接监听对外端口(SSL)，复用已有证书，不做80重定向（多端口场景）
             NEW_NGINX_CONF="/etc/nginx/sites-available/$APP_NAME"
             mv "$NEW_NGINX_CONF" "${NEW_NGINX_CONF}.bak"
             cat > "$NEW_NGINX_CONF" << EOF
 server {
-    listen 80;
-    listen [::]:80;
-    server_name $DOMAIN;
-
-    # ACME 验证目录保留
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
-    }
-
-    # 重定向到 HTTPS
-    location / {
-        return 301 https://\$host\$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen $EXTERNAL_PORT ssl http2;
+    listen [::]:$EXTERNAL_PORT ssl http2;
     server_name $DOMAIN;
 
     ssl_certificate $CERT_DIR/fullchain.pem;
@@ -334,7 +327,7 @@ server {
 
     # 代理到 Node.js 应用
     location / {
-        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_pass http://127.0.0.1:$INTERNAL_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -358,7 +351,7 @@ server {
 
     # 静态资源缓存
     location ~* \.(html|css|js|ico|png|jpg|svg)$ {
-        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_pass http://127.0.0.1:$INTERNAL_PORT;
         expires 1h;
         add_header Cache-Control "public, immutable";
     }
@@ -372,14 +365,14 @@ EOF
             ok "HTTPS 配置完成（复用已有证书）"
 
             # 更新 .env 中的 ALLOWED_ORIGINS
-            sed -i "s|ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://$DOMAIN|" "$APP_DIR/.env"
+            sed -i "s|ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://$DOMAIN:$EXTERNAL_PORT|" "$APP_DIR/.env"
         else
             # 没有已有证书，正常 certbot 申请
             certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$CERT_EMAIL" --redirect
             ok "HTTPS 配置完成"
 
             # 更新 .env 中的 ALLOWED_ORIGINS
-            sed -i "s|ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://$DOMAIN|" "$APP_DIR/.env"
+            sed -i "s|ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://$DOMAIN:$EXTERNAL_PORT|" "$APP_DIR/.env"
         fi
     fi
 }
@@ -390,10 +383,9 @@ configure_firewall() {
         info "配置防火墙..."
         ufw --force enable
         ufw allow 22/tcp
-        ufw allow 80/tcp
-        ufw allow 443/tcp
+        ufw allow "$EXTERNAL_PORT"/tcp
         ufw --force reload
-        ok "防火墙配置完成（仅开放 22/80/443）"
+        ok "防火墙配置完成（开放 22/$EXTERNAL_PORT）"
     else
         warn "未检测到 ufw，跳过防火墙配置"
     fi
@@ -411,8 +403,8 @@ verify_deployment() {
         error "PM2 进程未运行，请检查日志: sudo -u $APP_USER HOME=/home/$APP_USER pm2 logs $PM2_NAME"
     fi
 
-    # 检查本地响应
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$APP_PORT/")
+    # 检查本地响应（内部端口）
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$INTERNAL_PORT/")
     if [[ "$HTTP_CODE" == "200" ]]; then
         ok "应用本地响应正常 (HTTP $HTTP_CODE)"
     else
@@ -433,9 +425,11 @@ print_result() {
     echo -e "${GREEN}  部署完成！${NC}"
     separator
     echo ""
-    echo -e "  访问地址:  ${CYAN}http://$DOMAIN${NC}"
+    echo -e "  访问地址:  ${CYAN}https://$DOMAIN:$EXTERNAL_PORT${NC}"
     if [[ "$SETUP_HTTPS" =~ ^[Yy]$ ]]; then
-        echo -e "  HTTPS:     ${CYAN}https://$DOMAIN${NC}"
+        echo -e "  HTTPS:     ${CYAN}已启用${NC}"
+    else
+        echo -e "  访问地址:  ${CYAN}http://$DOMAIN:$EXTERNAL_PORT${NC}"
     fi
     echo ""
     echo -e "  管理员:    ${GREEN}admin${NC} / (您设置的密码)"
