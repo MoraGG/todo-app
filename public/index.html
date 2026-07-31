@@ -1044,6 +1044,7 @@
                 <div class="user-info">
                     <span id="currentUser">👤 加载中...</span>
                     <button class="btn btn-secondary btn-sm" id="loginBtn" onclick="openLoginModal()">🔐 登录</button>
+                    <button class="btn btn-secondary btn-sm" id="changePasswordBtn" style="display:none;" onclick="openChangePasswordModal()">🔑 改密</button>
                 </div>
             </div>
             <div class="project-tabs" id="projectTabs">
@@ -1296,7 +1297,39 @@
         </div>
     </div>
 
+    <div class="modal" id="changePasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>修改密码</h2>
+                <button class="close-btn" onclick="closeChangePasswordModal()">&times;</button>
+            </div>
+            <form class="modal-form" id="changePasswordForm">
+                <div class="form-group">
+                    <label for="oldPassword">旧密码</label>
+                    <input type="password" id="oldPassword" placeholder="请输入旧密码" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" placeholder="请输入新密码（至少6位）" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" placeholder="请再次输入新密码" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeChangePasswordModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">确认修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
         const API_URL = '/api/data';
         const LOGIN_API = '/api/login';
         const SESSION_API = '/api/session';
@@ -1339,7 +1372,9 @@
             console.log('validateSession: 正在验证token:', sessionToken);
             
             try {
-                const response = await fetch(`${SESSION_API}?token=${sessionToken}`);
+                const response = await fetch(SESSION_API, {
+                    headers: { 'X-Session-Token': sessionToken }
+                });
                 const result = await response.json();
                 
                 console.log('validateSession: 服务器响应:', result);
@@ -1372,16 +1407,45 @@
             localStorage.removeItem('isAdmin');
         }
 
+        function showLoginPage() {
+            document.getElementById('mainPage').style.display = 'none';
+            document.getElementById('backToTop').style.display = 'none';
+            openLoginModal();
+        }
+
+        function showMainPage() {
+            document.getElementById('mainPage').style.display = 'block';
+        }
+
         async function loadData() {
             showLoading();
             try {
                 // 尝试恢复会话
                 if (restoreSession()) {
-                    await validateSession();
+                    const valid = await validateSession();
+                    if (!valid) {
+                        showLoginPage();
+                        hideLoading();
+                        return;
+                    }
                     updateUserUI();
+                } else {
+                    showLoginPage();
+                    hideLoading();
+                    return;
                 }
                 
-                const response = await fetch(API_URL);
+                const response = await fetch(API_URL, {
+                    headers: { 'X-Session-Token': sessionToken || '' }
+                });
+                
+                if (response.status === 401) {
+                    clearSession();
+                    showLoginPage();
+                    hideLoading();
+                    return;
+                }
+                
                 const data = await response.json();
                 projects = data.projects || [];
                 allTodos = data.allTodos || {};
@@ -1398,6 +1462,7 @@
                 
                 currentProjectId = projects[0].id;
                 
+                showMainPage();
                 renderProjectTabs();
                 renderTable();
                 renderStats();
@@ -1413,13 +1478,19 @@
         async function saveData() {
             try {
                 const data = { projects, allTodos };
-                await fetch(API_URL, {
+                const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-Session-Token': sessionToken
                     },
                     body: JSON.stringify(data)
                 });
+                if (response.status === 401 || response.status === 403) {
+                    clearSession();
+                    showLoginPage();
+                    return;
+                }
             } catch (error) {
                 console.error('保存数据失败:', error);
                 alert('保存数据失败');
@@ -1460,7 +1531,7 @@
 
             const newName = prompt('请输入新的项目名称：', project.name);
             if (newName && newName.trim() !== '') {
-                project.name = newName.trim();
+                project.name = escapeHtml(newName.trim());
                 saveData().then(() => {
                     renderProjectTabs();
                 });
@@ -1518,7 +1589,7 @@
                 const tab = document.createElement('button');
                 tab.className = `project-tab ${project.id === currentProjectId ? 'active' : ''}`;
                 tab.innerHTML = `
-                    ${project.name}
+                    ${escapeHtml(project.name)}
                     ${isAdmin ? `<span class="delete-project" onclick="event.stopPropagation(); deleteProject('${project.id}')">×</span>` : ''}
                 `;
                 tab.onclick = () => selectProject(project.id);
@@ -1589,15 +1660,13 @@
                     isAdmin = result.isAdmin;
                     sessionToken = result.token;
                     
-                    // 保存到localStorage
                     localStorage.setItem('sessionToken', sessionToken);
                     localStorage.setItem('currentUser', currentUser);
                     localStorage.setItem('isAdmin', isAdmin);
                     
                     updateUserUI();
                     closeLoginModal();
-                    renderProjectTabs();
-                    renderTable();
+                    await loadData();
                 } else {
                     alert(result.message || '登录失败');
                 }
@@ -1612,28 +1681,27 @@
             const loginBtn = document.getElementById('loginBtn');
             
             if (currentUser) {
-                userSpan.textContent = `👤 ${currentUser} ${isAdmin ? '(管理员)' : '(访客)'}`;
-                loginBtn.textContent = '🔓 退出';
+                userSpan.textContent = currentUser + ' ' + (isAdmin ? '(管理员)' : '(访客)');
+                loginBtn.textContent = '退出';
                 loginBtn.onclick = logout;
+                document.getElementById('changePasswordBtn').style.display = 'inline-block';
+                
+                if (isAdmin) {
+                    document.getElementById('adminControls').style.display = 'block';
+                    document.getElementById('editControls').style.display = 'block';
+                    document.getElementById('readonlyNotice').style.display = 'none';
+                    document.getElementById('tableContainer').classList.remove('readonly');
+                } else {
+                    document.getElementById('adminControls').style.display = 'none';
+                    document.getElementById('editControls').style.display = 'none';
+                    document.getElementById('readonlyNotice').style.display = 'block';
+                    document.getElementById('tableContainer').classList.add('readonly');
+                }
             } else {
-                userSpan.textContent = '👤 访客';
-                loginBtn.textContent = '🔐 登录';
+                userSpan.textContent = '未登录';
+                loginBtn.textContent = '登录';
                 loginBtn.onclick = openLoginModal;
-            }
-
-            if (isAdmin) {
-                document.getElementById('adminControls').style.display = 'block';
-                document.getElementById('editControls').style.display = 'block';
-                document.getElementById('readonlyNotice').style.display = 'none';
-                document.getElementById('tableContainer').classList.remove('readonly');
-            } else if (currentUser) {
-                // 已登录但不是管理员
-                document.getElementById('adminControls').style.display = 'none';
-                document.getElementById('editControls').style.display = 'none';
-                document.getElementById('readonlyNotice').style.display = 'block';
-                document.getElementById('tableContainer').classList.add('readonly');
-            } else {
-                // 未登录（访客）
+                document.getElementById('changePasswordBtn').style.display = 'none';
                 document.getElementById('adminControls').style.display = 'none';
                 document.getElementById('editControls').style.display = 'none';
                 document.getElementById('readonlyNotice').style.display = 'none';
@@ -1658,17 +1726,15 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ token: sessionToken })
+                        'X-Session-Token': sessionToken
+                    }
                 });
             } catch (error) {
                 console.error('退出登录失败:', error);
             }
             
             clearSession();
-            updateUserUI();
-            renderProjectTabs();
-            renderTable();
+            showLoginPage();
         }
 
         function formatDate(date) {
@@ -1754,9 +1820,9 @@
                 row.innerHTML = `
                     <td style="text-align:center;"><input type="checkbox" class="row-checkbox" value="${todo.id}" onclick="toggleRow(${todo.id})" ${!isAdmin ? 'style="display:none"' : ''}></td>
                     <td>${index + 1}</td>
-                    <td>${todo.departments.join(', ')}</td>
-                    <td>${todo.item}</td>
-                    <td>${todo.assignee || '-'}</td>
+                    <td>${escapeHtml(todo.departments.join(', '))}</td>
+                    <td>${escapeHtml(todo.item)}</td>
+                    <td>${escapeHtml(todo.assignee) || '-'}</td>
                     <td>${todo.planDate}</td>
                     <td>${todo.actualDate || '-'}</td>
                     <td class="${statusClass}">${statusText}</td>
@@ -1906,10 +1972,10 @@
 
                 if (diffDays < 0) {
                     overdueCount++;
-                    warningItems.push(`• ${todo.item}（已逾期）`);
+                    warningItems.push(`• ${escapeHtml(todo.item)}（已逾期）`);
                 } else if (diffDays <= 7) {
                     warningCount++;
-                    warningItems.push(`• ${todo.item}（${diffDays === 0 ? '今天' : diffDays + '天后'}到期）`);
+                    warningItems.push(`• ${escapeHtml(todo.item)}（${diffDays === 0 ? '今天' : diffDays + '天后'}到期）`);
                 }
             });
 
@@ -2142,6 +2208,59 @@
         });
 
         document.getElementById('completeForm').addEventListener('submit', handleCompleteSubmit);
+
+        function openChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.add('show');
+            document.getElementById('oldPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.remove('show');
+        }
+
+        async function handleChangePassword(e) {
+            e.preventDefault();
+            const oldPassword = document.getElementById('oldPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (newPassword !== confirmPassword) {
+                alert('两次输入的新密码不一致');
+                return;
+            }
+            if (newPassword.length < 6) {
+                alert('新密码至少6位');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Session-Token': sessionToken
+                    },
+                    body: JSON.stringify({ oldPassword, newPassword })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('密码修改成功');
+                    closeChangePasswordModal();
+                } else {
+                    alert(result.message || '密码修改失败');
+                }
+            } catch (error) {
+                console.error('密码修改失败:', error);
+                alert('密码修改失败');
+            }
+        }
+
+        document.getElementById('changePasswordForm').addEventListener('submit', handleChangePassword);
+        document.getElementById('changePasswordModal').addEventListener('click', function(e) {
+            if (e.target === this) closeChangePasswordModal();
+        });
 
         function openCompleteModal(id) {
             document.getElementById('completeModal').classList.add('show');
@@ -2520,7 +2639,7 @@
                 const statDiv = document.createElement('div');
                 statDiv.className = 'project-stat';
                 statDiv.innerHTML = `
-                    <span class="project-name">${project.name}</span>
+                    <span class="project-name">${escapeHtml(project.name)}</span>
                     <span class="project-rate">${projectCompletedCount}/${projectTotalCount} (${projectPercentage}%)</span>
                 `;
                 summaryProjects.appendChild(statDiv);
