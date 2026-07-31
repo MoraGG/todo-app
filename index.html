@@ -1,0 +1,2531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办事项管理系统</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-info span {
+            font-size: 16px;
+        }
+
+        .project-tabs {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .project-tab {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .project-tab:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .project-tab.active {
+            background: white;
+            color: #667eea;
+        }
+
+        .project-tab .delete-project {
+            margin-left: 8px;
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+
+        .add-project-btn {
+            background: rgba(255,255,255,0.3);
+            border: 2px dashed rgba(255,255,255,0.5);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .add-project-btn:hover {
+            background: rgba(255,255,255,0.4);
+            border-color: white;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .warning-banner {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px 30px;
+            display: none;
+        }
+
+        .warning-banner.show {
+            display: block;
+        }
+
+        .warning-banner h3 {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .warning-count {
+            background: #dc3545;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+
+        /* 汇总统计样式 */
+        .summary-banner {
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 10px 30px;
+        }
+
+        .summary-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .summary-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .summary-btn.active {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .summary-container {
+            padding: 25px 30px;
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .summary-header {
+            margin-bottom: 20px;
+        }
+
+        .summary-header h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .summary-total {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .summary-total .summary-label {
+            font-size: 12px;
+            opacity: 0.9;
+            display: block;
+        }
+
+        .summary-total .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+            display: block;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .summary-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+
+        .summary-card .dept-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .summary-card .progress-bar {
+            height: 22px;
+            background: #e9ecef;
+            border-radius: 11px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .summary-card .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            transition: width 0.3s;
+        }
+
+        .summary-card .progress-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .summary-projects {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #dee2e6;
+        }
+
+        .summary-projects h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .project-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .project-stat .project-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .project-stat .project-rate {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .batch-actions {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .batch-actions.show {
+            display: flex;
+        }
+
+        .batch-actions span {
+            color: #856404;
+            font-weight: 500;
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .search-box input, .search-box select {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 140px;
+        }
+
+        .search-box input:focus, .search-box select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            table-layout: fixed;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            word-wrap: break-word;
+        }
+
+        th:nth-child(1), td:nth-child(1) {
+            width: 40px;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        th:nth-child(2), td:nth-child(2) {
+            width: 60px;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        th:nth-child(3), td:nth-child(3) {
+            width: 100px;
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        th:nth-child(4), td:nth-child(4) {
+            min-width: 300px;
+            word-wrap: break-word;
+        }
+
+        th:nth-child(5), td:nth-child(5) {
+            width: 80px;
+            white-space: nowrap;
+        }
+
+        th:nth-child(6), td:nth-child(6) {
+            width: 110px;
+            white-space: nowrap;
+        }
+
+        th:nth-child(7), td:nth-child(7) {
+            width: 110px;
+            white-space: nowrap;
+        }
+
+        th:nth-child(8), td:nth-child(8) {
+            width: 100px;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-overdue {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .status-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+
+        .status-completed {
+            color: #28a745;
+        }
+
+        .status-early {
+            color: #17a2b8;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            color: #666;
+        }
+
+        .status-latecompleted {
+            color: #ff8c00;
+            font-weight: bold;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .readonly .actions {
+            display: none;
+        }
+
+        .stats-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .stats-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .stats-filter select {
+            padding: 8px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .stats-filter select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .stat-card .dept-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .progress-bar {
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            transition: width 0.3s;
+        }
+
+        .stat-card .progress-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .modal-header h2 {
+            color: #333;
+            font-size: 22px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #666;
+            transition: color 0.3s;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .modal-form .form-group {
+            margin-bottom: 18px;
+        }
+
+        .modal-form label {
+            display: block;
+            margin-bottom: 6px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .modal-form input, .modal-form select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .modal-form input:focus, .modal-form select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-form textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .modal-form textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .checkbox-item input {
+            width: auto;
+        }
+
+        .modal-footer {
+            margin-top: 25px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .readonly-notice {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            color: #004085;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .data-tip {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            color: #004085;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .data-tip strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+
+        .loading-overlay.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            color: #667eea;
+            font-size: 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                border-radius: 10px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .header-top {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .user-info {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .project-tabs {
+                width: 100%;
+                overflow-x: auto;
+                padding-bottom: 10px;
+                flex-wrap: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .project-tab {
+                white-space: nowrap;
+                padding: 8px 15px;
+                font-size: 13px;
+            }
+
+            .add-project-btn {
+                white-space: nowrap;
+                padding: 8px 15px;
+                font-size: 13px;
+            }
+
+            .content {
+                padding: 15px;
+            }
+
+            .warning-banner {
+                padding: 12px 15px;
+            }
+
+            .warning-banner h3 {
+                font-size: 15px;
+            }
+
+            .data-tip {
+                padding: 12px;
+                font-size: 13px;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .toolbar-left, .toolbar-right {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .search-box input, .search-box select {
+                width: 100%;
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+
+            .search-box select {
+                margin-top: 8px;
+            }
+
+            .btn {
+                width: 100%;
+                padding: 12px 15px;
+                font-size: 15px;
+                text-align: center;
+            }
+
+            .toolbar-right {
+                gap: 8px;
+            }
+
+            .readonly-notice {
+                font-size: 13px;
+                padding: 10px 12px;
+            }
+
+            .table-container {
+                font-size: 13px;
+                margin: 0 -15px;
+                padding: 0 15px;
+            }
+
+            table {
+                min-width: 600px;
+            }
+
+            th, td {
+                padding: 10px 8px;
+                font-size: 13px;
+            }
+
+            th {
+                font-size: 12px;
+            }
+
+            .actions {
+                flex-direction: column;
+                gap: 5px;
+            }
+
+            .actions .btn {
+                width: auto;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .stats-container {
+                padding: 15px;
+                margin-top: 20px;
+            }
+
+            .stats-title {
+                font-size: 16px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .stat-card {
+                padding: 12px 10px;
+            }
+
+            .stat-card .dept-name {
+                font-size: 13px;
+            }
+
+            .stat-card .progress-text {
+                font-size: 12px;
+            }
+
+            /* 移动端弹窗优化 */
+            .modal {
+                padding: 10px;
+                align-items: flex-end;
+            }
+
+            .modal-content {
+                width: 100%;
+                max-width: 100%;
+                max-height: 85vh;
+                border-radius: 15px 15px 0 0;
+                padding: 20px;
+            }
+
+            .modal-header {
+                padding-bottom: 12px;
+                margin-bottom: 20px;
+            }
+
+            .modal-header h2 {
+                font-size: 18px;
+            }
+
+            .modal-form .form-group {
+                margin-bottom: 15px;
+            }
+
+            .modal-form label {
+                font-size: 14px;
+                margin-bottom: 5px;
+            }
+
+            .modal-form input, 
+            .modal-form select,
+            .modal-form textarea {
+                padding: 12px;
+                font-size: 16px; /* 防止iOS缩放 */
+            }
+
+            .checkbox-group {
+                gap: 10px;
+            }
+
+            .checkbox-item {
+                min-width: 50%;
+                padding: 5px 0;
+            }
+
+            .checkbox-item input {
+                transform: scale(1.2);
+            }
+
+            .modal-footer {
+                flex-direction: column;
+                gap: 10px;
+                margin-top: 20px;
+            }
+
+            .modal-footer .btn {
+                width: 100%;
+            }
+
+            #loginModal .modal-content {
+                max-height: 70vh;
+            }
+
+            #loginForm + p {
+                font-size: 12px;
+            }
+
+            /* 加载动画优化 */
+            .loading-text {
+                font-size: 14px;
+            }
+        }
+
+        /* 返回顶部按钮 */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .back-to-top.show {
+            display: flex;
+        }
+
+        /* 极小屏幕优化 */
+        @media (max-width: 400px) {
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .project-tab,
+            .add-project-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .back-to-top {
+                bottom: 20px;
+                right: 20px;
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在连接服务器...</div>
+    </div>
+
+    <div class="container" id="mainPage">
+        <div class="header">
+            <div class="header-top">
+                <h1>📋 待办事项管理</h1>
+                <div class="user-info">
+                    <span id="currentUser">👤 加载中...</span>
+                    <button class="btn btn-secondary btn-sm" id="loginBtn" onclick="openLoginModal()">🔐 登录</button>
+                </div>
+            </div>
+            <div class="project-tabs" id="projectTabs">
+            </div>
+        </div>
+
+        <div class="summary-banner" id="summaryBanner">
+            <button class="summary-btn" id="summaryBtn" onclick="toggleSummaryView()">
+                📊 汇总统计
+            </button>
+        </div>
+
+        <div class="summary-container" id="summaryContainer" style="display: none;">
+            <div class="summary-header">
+                <h2>📊 各部门整体完成率（汇总所有项目）</h2>
+                <div class="summary-stats">
+                    <div class="summary-total">
+                        <span class="summary-label">总事项</span>
+                        <span class="summary-value" id="totalCount">0</span>
+                    </div>
+                    <div class="summary-total">
+                        <span class="summary-label">已完成</span>
+                        <span class="summary-value" id="completedCount">0</span>
+                    </div>
+                    <div class="summary-total">
+                        <span class="summary-label">总体完成率</span>
+                        <span class="summary-value" id="overallRate">0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="summary-grid" id="summaryGrid">
+            </div>
+            <div class="summary-projects" id="summaryProjects">
+            </div>
+        </div>
+
+        <div class="warning-banner" id="warningBanner">
+            <h3>⚠️ 预警提醒 <span class="warning-count" id="warningCount">0</span></h3>
+            <p id="warningMessage"></p>
+        </div>
+
+        <div class="content">
+            <div class="data-tip" id="dataTip">
+                <strong>💡 数据存储说明</strong>
+                数据保存在服务器端，支持多人协作，所有用户共享同一份数据。
+            </div>
+
+            <div class="batch-actions" id="batchActions">
+                <span>已选择 <strong id="selectedCount">0</strong> 项</span>
+                <button class="btn btn-danger btn-sm" onclick="batchDelete()">🗑️ 批量删除</button>
+                <button class="btn btn-secondary btn-sm" onclick="clearSelection()">取消选择</button>
+            </div>
+
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <input type="text" id="searchText" placeholder="搜索事项..." onkeyup="filterTable()">
+                        <select id="filterDept" onchange="filterTable()">
+                            <option value="">全部部门</option>
+                            <option value="工程">工程</option>
+                            <option value="成本">成本</option>
+                            <option value="设计">设计</option>
+                            <option value="前期">前期</option>
+                            <option value="营销">营销</option>
+                            <option value="运营">运营</option>
+                        </select>
+                        <select id="filterMonth" onchange="filterTable()">
+                            <option value="">全部月份</option>
+                        </select>
+                        <select id="filterStatus" onchange="filterTable()">
+                            <option value="">全部状态</option>
+                            <option value="pending">未完成</option>
+                            <option value="warning">即将到期</option>
+                            <option value="overdue">已逾期</option>
+                            <option value="latecompleted">逾期完成</option>
+                            <option value="early">提前完成</option>
+                            <option value="completed">按时完成</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="toolbar-right">
+                    <div id="adminControls" style="display: none;">
+                        <button class="btn btn-primary" onclick="handleExport()">📥 导出Excel</button>
+                        <button class="btn btn-secondary" onclick="downloadTemplate()">📄 下载模板</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">📤 导入Excel</button>
+                        <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="handleImport(event)">
+                    </div>
+                    <button class="btn btn-secondary" onclick="refreshData()">🔄 刷新</button>
+                    <div id="editControls" style="display: none;">
+                        <button class="btn btn-primary" onclick="openModal()">➕ 添加事项</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="readonlyNotice" class="readonly-notice" style="display: none;">
+                👁️ 当前为浏览模式，您没有编辑权限
+            </div>
+
+            <div class="table-container" id="tableContainer">
+                <table id="todoTable">
+                    <thead>
+                        <tr>
+                            <th style="width:40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()" ${!isAdmin ? 'style="display:none"' : ''}></th>
+                            <th>序号</th>
+                            <th>归属部门</th>
+                            <th>事项</th>
+                            <th>责任人</th>
+                            <th>计划完成时间</th>
+                            <th>实际完成时间</th>
+                            <th>状态</th>
+                            <th id="actionsHeader">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="todoBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="stats-container" id="statsContainer">
+                <div class="stats-header">
+                    <div class="stats-title">📊 各部门完成率</div>
+                    <div class="stats-filter">
+                        <select id="statsMonth" onchange="renderStats()">
+                            <option value="">全部月份</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="stats-grid" id="statsGrid">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="back-to-top" id="backToTop" onclick="scrollToTop()">↑</button>
+
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>用户登录</h2>
+                <button class="close-btn" onclick="closeLoginModal()">&times;</button>
+            </div>
+            <form class="modal-form" id="loginForm">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" placeholder="请输入密码" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeLoginModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">登录</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="todoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">添加待办事项</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form class="modal-form" id="todoForm">
+                <input type="hidden" id="todoId">
+                <div class="form-group">
+                    <label>归属部门（可多选）</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="dept" value="工程"> 工程
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="dept" value="成本"> 成本
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="dept" value="设计"> 设计
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="dept" value="前期"> 前期
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="dept" value="营销"> 营销
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" name="dept" value="运营"> 运营
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="todoItem">事项</label>
+                    <textarea id="todoItem" required placeholder="请输入待办事项内容"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="assignee">责任人</label>
+                    <input type="text" id="assignee" placeholder="请输入责任人姓名">
+                </div>
+                <div class="form-group">
+                    <label for="planDate">计划完成时间</label>
+                    <input type="date" id="planDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="actualDate">实际完成时间</label>
+                    <input type="date" id="actualDate">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="projectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>添加项目</h2>
+                <button class="close-btn" onclick="closeProjectModal()">&times;</button>
+            </div>
+            <form class="modal-form" id="projectForm">
+                <div class="form-group">
+                    <label for="projectName">项目名称</label>
+                    <input type="text" id="projectName" placeholder="请输入项目名称" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeProjectModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="completeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>确认完成</h2>
+                <button class="close-btn" onclick="closeCompleteModal()">&times;</button>
+            </div>
+            <form class="modal-form" id="completeForm">
+                <input type="hidden" id="completeTodoId">
+                <div class="form-group">
+                    <label for="completeDate">完成日期</label>
+                    <input type="date" id="completeDate" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeCompleteModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">确认完成</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/data';
+        const LOGIN_API = '/api/login';
+        const SESSION_API = '/api/session';
+        const LOGOUT_API = '/api/logout';
+        
+        let currentUser = null;
+        let isAdmin = false;
+        let sessionToken = null;
+        let currentProjectId = null;
+        let projects = [];
+        let allTodos = {};
+        let selectedIds = [];
+
+        document.getElementById('loginForm').addEventListener('submit', handleLogin);
+        document.getElementById('todoForm').addEventListener('submit', handleSubmit);
+        document.getElementById('projectForm').addEventListener('submit', handleProjectSubmit);
+
+        // 从localStorage恢复会话
+        function restoreSession() {
+            const savedToken = localStorage.getItem('sessionToken');
+            const savedUser = localStorage.getItem('currentUser');
+            const savedIsAdmin = localStorage.getItem('isAdmin');
+            
+            if (savedToken && savedUser) {
+                sessionToken = savedToken;
+                currentUser = savedUser;
+                isAdmin = savedIsAdmin === 'true';
+                return true;
+            }
+            return false;
+        }
+
+        // 验证会话
+        async function validateSession() {
+            if (!sessionToken) {
+                console.log('validateSession: 没有token');
+                return false;
+            }
+            
+            console.log('validateSession: 正在验证token:', sessionToken);
+            
+            try {
+                const response = await fetch(`${SESSION_API}?token=${sessionToken}`);
+                const result = await response.json();
+                
+                console.log('validateSession: 服务器响应:', result);
+                
+                if (result.success) {
+                    currentUser = result.username;
+                    isAdmin = result.isAdmin;
+                    localStorage.setItem('currentUser', currentUser);
+                    localStorage.setItem('isAdmin', isAdmin);
+                    console.log('validateSession: 会话验证成功', currentUser, isAdmin);
+                    return true;
+                }
+            } catch (error) {
+                console.error('会话验证失败:', error);
+            }
+            
+            // 会话无效，清除存储
+            console.log('validateSession: 会话无效，清除');
+            clearSession();
+            return false;
+        }
+
+        // 清除会话
+        function clearSession() {
+            sessionToken = null;
+            currentUser = null;
+            isAdmin = false;
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('isAdmin');
+        }
+
+        async function loadData() {
+            showLoading();
+            try {
+                // 尝试恢复会话
+                if (restoreSession()) {
+                    await validateSession();
+                    updateUserUI();
+                }
+                
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                projects = data.projects || [];
+                allTodos = data.allTodos || {};
+                
+                if (projects.length === 0) {
+                    projects.push({
+                        id: Date.now().toString(),
+                        name: '默认项目',
+                        createdAt: new Date().toISOString()
+                    });
+                    allTodos[projects[0].id] = [];
+                    await saveData();
+                }
+                
+                currentProjectId = projects[0].id;
+                
+                renderProjectTabs();
+                renderTable();
+                renderStats();
+                checkWarnings();
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                alert('连接服务器失败，请确保服务器已启动！\n\n启动方法：\n1. 打开命令行\n2. 进入todo-app目录\n3. 运行: npm start');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function saveData() {
+            try {
+                const data = { projects, allTodos };
+                await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+            } catch (error) {
+                console.error('保存数据失败:', error);
+                alert('保存数据失败');
+            }
+        }
+
+        async function refreshData() {
+            await loadData();
+        }
+
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function addProject(name) {
+            const project = {
+                id: Date.now().toString(),
+                name: name,
+                createdAt: new Date().toISOString()
+            };
+            projects.push(project);
+            allTodos[project.id] = [];
+            return project;
+        }
+
+        function editProjectName(projectId) {
+            if (!isAdmin) {
+                alert('只有管理员可以修改项目名称');
+                return;
+            }
+
+            const project = projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            const newName = prompt('请输入新的项目名称：', project.name);
+            if (newName && newName.trim() !== '') {
+                project.name = newName.trim();
+                saveData().then(() => {
+                    renderProjectTabs();
+                });
+            }
+        }
+
+        async function deleteProject(projectId) {
+            if (!isAdmin) {
+                alert('只有管理员可以删除项目');
+                return;
+            }
+            
+            if (projects.length <= 1) {
+                alert('至少需要保留一个项目');
+                return;
+            }
+
+            if (confirm('确定要删除这个项目吗？删除后无法恢复！')) {
+                delete allTodos[projectId];
+                projects = projects.filter(p => p.id !== projectId);
+                
+                if (currentProjectId === projectId) {
+                    currentProjectId = projects[0].id;
+                }
+                
+                await saveData();
+                renderProjectTabs();
+                renderTable();
+                renderStats();
+                checkWarnings();
+            }
+        }
+
+        function selectProject(projectId) {
+            currentProjectId = projectId;
+            renderProjectTabs();
+            renderTable();
+            renderStats();
+            checkWarnings();
+        }
+
+        function getCurrentTodos() {
+            return allTodos[currentProjectId] || [];
+        }
+
+        function setCurrentTodos(todos) {
+            allTodos[currentProjectId] = todos;
+        }
+
+        function renderProjectTabs() {
+            const container = document.getElementById('projectTabs');
+            container.innerHTML = '';
+
+            projects.forEach(project => {
+                const tab = document.createElement('button');
+                tab.className = `project-tab ${project.id === currentProjectId ? 'active' : ''}`;
+                tab.innerHTML = `
+                    ${project.name}
+                    ${isAdmin ? `<span class="delete-project" onclick="event.stopPropagation(); deleteProject('${project.id}')">×</span>` : ''}
+                `;
+                tab.onclick = () => selectProject(project.id);
+                if (isAdmin) {
+                    tab.ondblclick = (e) => {
+                        e.stopPropagation();
+                        editProjectName(project.id);
+                    };
+                }
+                container.appendChild(tab);
+            });
+
+            if (isAdmin) {
+                const addBtn = document.createElement('button');
+                addBtn.className = 'add-project-btn';
+                addBtn.innerHTML = '➕ 新建项目';
+                addBtn.onclick = openProjectModal;
+                container.appendChild(addBtn);
+            }
+        }
+
+        function openProjectModal() {
+            document.getElementById('projectModal').classList.add('show');
+            document.getElementById('projectName').value = '';
+            document.getElementById('projectName').focus();
+        }
+
+        function closeProjectModal() {
+            document.getElementById('projectModal').classList.remove('show');
+        }
+
+        async function handleProjectSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('projectName').value.trim();
+            
+            if (!name) {
+                alert('请输入项目名称');
+                return;
+            }
+
+            const newProject = addProject(name);
+            currentProjectId = newProject.id;
+            await saveData();
+            renderProjectTabs();
+            renderTable();
+            renderStats();
+            closeProjectModal();
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(LOGIN_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentUser = result.username;
+                    isAdmin = result.isAdmin;
+                    sessionToken = result.token;
+                    
+                    // 保存到localStorage
+                    localStorage.setItem('sessionToken', sessionToken);
+                    localStorage.setItem('currentUser', currentUser);
+                    localStorage.setItem('isAdmin', isAdmin);
+                    
+                    updateUserUI();
+                    closeLoginModal();
+                    renderProjectTabs();
+                    renderTable();
+                } else {
+                    alert(result.message || '登录失败');
+                }
+            } catch (error) {
+                console.error('登录失败:', error);
+                alert('登录失败，请检查网络连接');
+            }
+        }
+
+        function updateUserUI() {
+            const userSpan = document.getElementById('currentUser');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            if (currentUser) {
+                userSpan.textContent = `👤 ${currentUser} ${isAdmin ? '(管理员)' : '(访客)'}`;
+                loginBtn.textContent = '🔓 退出';
+                loginBtn.onclick = logout;
+            } else {
+                userSpan.textContent = '👤 访客';
+                loginBtn.textContent = '🔐 登录';
+                loginBtn.onclick = openLoginModal;
+            }
+
+            if (isAdmin) {
+                document.getElementById('adminControls').style.display = 'block';
+                document.getElementById('editControls').style.display = 'block';
+                document.getElementById('readonlyNotice').style.display = 'none';
+                document.getElementById('tableContainer').classList.remove('readonly');
+            } else if (currentUser) {
+                // 已登录但不是管理员
+                document.getElementById('adminControls').style.display = 'none';
+                document.getElementById('editControls').style.display = 'none';
+                document.getElementById('readonlyNotice').style.display = 'block';
+                document.getElementById('tableContainer').classList.add('readonly');
+            } else {
+                // 未登录（访客）
+                document.getElementById('adminControls').style.display = 'none';
+                document.getElementById('editControls').style.display = 'none';
+                document.getElementById('readonlyNotice').style.display = 'none';
+                document.getElementById('tableContainer').classList.remove('readonly');
+            }
+        }
+
+        function openLoginModal() {
+            document.getElementById('loginModal').classList.add('show');
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('username').focus();
+        }
+
+        function closeLoginModal() {
+            document.getElementById('loginModal').classList.remove('show');
+        }
+
+        async function logout() {
+            try {
+                await fetch(LOGOUT_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token: sessionToken })
+                });
+            } catch (error) {
+                console.error('退出登录失败:', error);
+            }
+            
+            clearSession();
+            updateUserUI();
+            renderProjectTabs();
+            renderTable();
+        }
+
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('todoBody');
+            const searchText = document.getElementById('searchText').value.toLowerCase();
+            const filterDept = document.getElementById('filterDept').value;
+            const filterStatus = document.getElementById('filterStatus').value;
+            const filterMonth = document.getElementById('filterMonth').value;
+
+            let todos = getCurrentTodos();
+            
+            // 更新月份筛选选项
+            updateFilterMonthOptions();
+
+            let completedTodos = todos.filter(t => t.actualDate);
+            let pendingTodos = todos.filter(t => !t.actualDate);
+
+            // 按部门排序，部门内按计划完成时间从早到晚排序
+            const deptOrder = { '工程': 0, '成本': 1, '设计': 2, '前期': 3, '营销': 4, '运营': 5 };
+            
+            pendingTodos.sort((a, b) => {
+                // 首先按第一个部门排序
+                const aFirstDept = a.departments[0] || '';
+                const bFirstDept = b.departments[0] || '';
+                const deptCompare = (deptOrder[aFirstDept] || 99) - (deptOrder[bFirstDept] || 99);
+                if (deptCompare !== 0) return deptCompare;
+                
+                // 部门相同则按计划完成时间排序
+                return new Date(a.planDate) - new Date(b.planDate);
+            });
+
+            completedTodos.sort((a, b) => {
+                // 首先按第一个部门排序
+                const aFirstDept = a.departments[0] || '';
+                const bFirstDept = b.departments[0] || '';
+                const deptCompare = (deptOrder[aFirstDept] || 99) - (deptOrder[bFirstDept] || 99);
+                if (deptCompare !== 0) return deptCompare;
+                
+                // 部门相同则按计划完成时间排序
+                return new Date(a.planDate) - new Date(b.planDate);
+            });
+
+            let sortedTodos = [...pendingTodos, ...completedTodos];
+
+            let filteredTodos = sortedTodos.filter(todo => {
+                if (searchText && !todo.item.toLowerCase().includes(searchText)) {
+                    return false;
+                }
+                if (filterDept && !todo.departments.includes(filterDept)) {
+                    return false;
+                }
+                if (filterMonth && todo.planDate && !todo.planDate.startsWith(filterMonth)) {
+                    return false;
+                }
+                if (filterStatus) {
+                    const status = getTodoStatus(todo);
+                    if (filterStatus === 'pending') {
+                        if (status !== 'pending' && status !== 'warning' && status !== 'overdue') return false;
+                    } else if (filterStatus !== status) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            tbody.innerHTML = '';
+
+            if (filteredTodos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #999; padding: 40px;">暂无数据</td></tr>';
+                return;
+            }
+
+            filteredTodos.forEach((todo, index) => {
+                const status = getTodoStatus(todo);
+                const statusText = getStatusText(status);
+                const statusClass = getStatusClass(status);
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="text-align:center;"><input type="checkbox" class="row-checkbox" value="${todo.id}" onclick="toggleRow(${todo.id})" ${!isAdmin ? 'style="display:none"' : ''}></td>
+                    <td>${index + 1}</td>
+                    <td>${todo.departments.join(', ')}</td>
+                    <td>${todo.item}</td>
+                    <td>${todo.assignee || '-'}</td>
+                    <td>${todo.planDate}</td>
+                    <td>${todo.actualDate || '-'}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                    <td class="actions">
+                        ${isAdmin && !todo.actualDate ? `
+                            <button class="btn btn-success btn-sm" onclick="openCompleteModal(${todo.id})">完成</button>
+                        ` : ''}
+                        ${isAdmin ? `
+                            <button class="btn btn-secondary btn-sm" onclick="editTodo(${todo.id})">编辑</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteTodo(${todo.id})">删除</button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateStatsMonthOptions() {
+            const todos = getCurrentTodos();
+            const monthSelect = document.getElementById('statsMonth');
+            const months = new Set();
+            
+            todos.forEach(todo => {
+                if (todo.planDate) {
+                    const month = todo.planDate.substring(0, 7);
+                    months.add(month);
+                }
+            });
+            
+            const sortedMonths = Array.from(months).sort().reverse();
+            const currentValue = monthSelect.value;
+            
+            monthSelect.innerHTML = '<option value="">全部月份</option>';
+            sortedMonths.forEach(month => {
+                const option = document.createElement('option');
+                option.value = month;
+                option.textContent = month;
+                monthSelect.appendChild(option);
+            });
+            
+            if (sortedMonths.includes(currentValue)) {
+                monthSelect.value = currentValue;
+            }
+        }
+
+        function renderStats() {
+            const todos = getCurrentTodos();
+            const statsGrid = document.getElementById('statsGrid');
+            const allDepts = ['工程', '成本', '设计', '前期', '营销', '运营'];
+            const selectedMonth = document.getElementById('statsMonth').value;
+            
+            updateStatsMonthOptions();
+            
+            let filteredTodos = todos;
+            if (selectedMonth) {
+                filteredTodos = todos.filter(t => t.planDate && t.planDate.startsWith(selectedMonth));
+            }
+            
+            statsGrid.innerHTML = '';
+
+            allDepts.forEach(dept => {
+                const deptTodos = filteredTodos.filter(t => t.departments.includes(dept));
+                const completedCount = deptTodos.filter(t => t.actualDate).length;
+                const totalCount = deptTodos.length;
+                const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+                const card = document.createElement('div');
+                card.className = 'stat-card';
+                card.innerHTML = `
+                    <div class="dept-name">${dept}</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${percentage}%"></div>
+                    </div>
+                    <div class="progress-text">${completedCount}/${totalCount} (${percentage}%)</div>
+                `;
+                statsGrid.appendChild(card);
+            });
+        }
+
+        function getTodoStatus(todo) {
+            if (todo.actualDate) {
+                const planDate = new Date(todo.planDate);
+                const actualDate = new Date(todo.actualDate);
+                planDate.setHours(0, 0, 0, 0);
+                actualDate.setHours(0, 0, 0, 0);
+                
+                if (actualDate < planDate) {
+                    return 'early';
+                } else if (actualDate > planDate) {
+                    return 'latecompleted';
+                }
+                return 'completed';
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const planDate = new Date(todo.planDate);
+            planDate.setHours(0, 0, 0, 0);
+
+            const diffDays = Math.ceil((planDate - today) / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+                return 'overdue';
+            } else if (diffDays <= 7) {
+                return 'warning';
+            }
+            return 'pending';
+        }
+
+        function getStatusText(status) {
+            switch(status) {
+                case 'completed': return '✓ 按时完成';
+                case 'early': return '🌟 提前完成';
+                case 'latecompleted': return '⚠️ 逾期完成';
+                case 'overdue': return '⚠️ 已逾期';
+                case 'warning': return '⏰ 即将到期';
+                default: return '○ 待处理';
+            }
+        }
+
+        function getStatusClass(status) {
+            switch(status) {
+                case 'completed': return 'status-completed';
+                case 'early': return 'status-early';
+                case 'latecompleted': return 'status-latecompleted';
+                case 'overdue': return 'status-overdue';
+                case 'warning': return 'status-warning';
+                default: return 'status-pending';
+            }
+        }
+
+        function checkWarnings() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let warningCount = 0;
+            let overdueCount = 0;
+            let warningItems = [];
+
+            const todos = getCurrentTodos();
+
+            todos.forEach(todo => {
+                if (todo.actualDate) return;
+
+                const planDate = new Date(todo.planDate);
+                planDate.setHours(0, 0, 0, 0);
+                const diffDays = Math.ceil((planDate - today) / (1000 * 60 * 60 * 24));
+
+                if (diffDays < 0) {
+                    overdueCount++;
+                    warningItems.push(`• ${todo.item}（已逾期）`);
+                } else if (diffDays <= 7) {
+                    warningCount++;
+                    warningItems.push(`• ${todo.item}（${diffDays === 0 ? '今天' : diffDays + '天后'}到期）`);
+                }
+            });
+
+            const banner = document.getElementById('warningBanner');
+            const countEl = document.getElementById('warningCount');
+            const messageEl = document.getElementById('warningMessage');
+
+            if (overdueCount > 0 || warningCount > 0) {
+                banner.classList.add('show');
+                countEl.textContent = overdueCount + warningCount;
+                
+                let messages = [];
+                if (overdueCount > 0) {
+                    messages.push(`<strong>已逾期 ${overdueCount} 项</strong>`);
+                }
+                if (warningCount > 0) {
+                    messages.push(`<strong>即将到期 ${warningCount} 项</strong>`);
+                }
+                
+                messageEl.innerHTML = messages.join('，') + '<br>' + warningItems.slice(0, 5).join('<br>');
+                if (warningItems.length > 5) {
+                    messageEl.innerHTML += '<br>...';
+                }
+            } else {
+                banner.classList.remove('show');
+            }
+        }
+
+        function filterTable() {
+            renderTable();
+        }
+
+        function openModal(id = null) {
+            document.getElementById('todoModal').classList.add('show');
+            document.getElementById('todoForm').reset();
+            document.getElementById('todoId').value = '';
+
+            if (id) {
+                document.getElementById('modalTitle').textContent = '编辑待办事项';
+                const todos = getCurrentTodos();
+                const todo = todos.find(t => t.id === id);
+                if (todo) {
+                    document.getElementById('todoId').value = todo.id;
+                    document.getElementById('todoItem').value = todo.item;
+                    document.getElementById('assignee').value = todo.assignee || '';
+                    document.getElementById('planDate').value = todo.planDate;
+                    document.getElementById('actualDate').value = todo.actualDate;
+
+                    document.querySelectorAll('input[name="dept"]').forEach(cb => {
+                        cb.checked = todo.departments.includes(cb.value);
+                    });
+                }
+            } else {
+                document.getElementById('modalTitle').textContent = '添加待办事项';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('todoModal').classList.remove('show');
+        }
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+
+            const departments = [];
+            document.querySelectorAll('input[name="dept"]:checked').forEach(cb => {
+                departments.push(cb.value);
+            });
+
+            if (departments.length === 0) {
+                alert('请至少选择一个部门');
+                return;
+            }
+
+            const todoData = {
+                id: document.getElementById('todoId').value || Date.now(),
+                departments: departments,
+                item: document.getElementById('todoItem').value,
+                assignee: document.getElementById('assignee').value,
+                planDate: document.getElementById('planDate').value,
+                actualDate: document.getElementById('actualDate').value
+            };
+
+            let todos = getCurrentTodos();
+            const existingId = document.getElementById('todoId').value;
+            
+            if (existingId) {
+                const index = todos.findIndex(t => t.id == existingId);
+                if (index !== -1) {
+                    todos[index] = todoData;
+                }
+            } else {
+                todos.push(todoData);
+            }
+
+            setCurrentTodos(todos);
+            await saveData();
+            renderTable();
+            renderStats();
+            checkWarnings();
+            closeModal();
+        }
+
+        function editTodo(id) {
+            openModal(id);
+        }
+
+        async function deleteTodo(id) {
+            if (confirm('确定要删除这条待办事项吗？')) {
+                let todos = getCurrentTodos();
+                todos = todos.filter(t => t.id !== id);
+                setCurrentTodos(todos);
+                await saveData();
+                renderTable();
+                renderStats();
+                checkWarnings();
+            }
+        }
+
+        async function markComplete(id) {
+            let todos = getCurrentTodos();
+            const todo = todos.find(t => t.id === id);
+            if (todo) {
+                todo.actualDate = formatDate(new Date());
+                setCurrentTodos(todos);
+                await saveData();
+                renderTable();
+                renderStats();
+                checkWarnings();
+            }
+        }
+
+        function handleExport() {
+            const todos = getCurrentTodos();
+            const currentProject = projects.find(p => p.id === currentProjectId);
+            const projectName = currentProject ? currentProject.name : '待办事项';
+            
+            if (todos.length === 0) {
+                alert('当前项目没有数据可导出');
+                return;
+            }
+
+            const monthlyData = {};
+            
+            todos.forEach(todo => {
+                if (todo.planDate) {
+                    const month = todo.planDate.substring(0, 7);
+                    if (!monthlyData[month]) {
+                        monthlyData[month] = [];
+                    }
+                    monthlyData[month].push(todo);
+                } else {
+                    if (!monthlyData['未安排']) {
+                        monthlyData['未安排'] = [];
+                    }
+                    monthlyData['未安排'].push(todo);
+                }
+            });
+
+            const sortedMonths = Object.keys(monthlyData).sort();
+            
+            const ws_data = [];
+            
+            ws_data.push([`${projectName} - 待办事项导出`, '', '', '', '', '']);
+            ws_data.push([`导出时间: ${new Date().toLocaleString()}`, '', '', '', '', '']);
+            ws_data.push([]);
+            ws_data.push(['序号', '归属部门', '事项', '计划完成时间', '实际完成时间', '状态']);
+
+            let index = 1;
+            sortedMonths.forEach(month => {
+                ws_data.push([]);
+                ws_data.push([`${month}`]);
+                
+                const monthTodos = monthlyData[month];
+                monthTodos.forEach(todo => {
+                    const status = getTodoStatus(todo);
+                    const statusText = getStatusText(status);
+                    
+                    ws_data.push([
+                        index++,
+                        todo.departments.join(', '),
+                        todo.item,
+                        todo.planDate,
+                        todo.actualDate || '',
+                        statusText
+                    ]);
+                });
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            
+            ws['!cols'] = [
+                { wch: 6 },
+                { wch: 15 },
+                { wch: 40 },
+                { wch: 15 },
+                { wch: 15 },
+                { wch: 12 }
+            ];
+
+            XLSX.utils.book_append_sheet(wb, ws, '待办事项');
+
+            const fileName = `${projectName}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        document.getElementById('todoModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        document.getElementById('loginModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeLoginModal();
+            }
+        });
+
+        document.getElementById('projectModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeProjectModal();
+            }
+        });
+
+        document.getElementById('completeModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeCompleteModal();
+            }
+        });
+
+        document.getElementById('completeForm').addEventListener('submit', handleCompleteSubmit);
+
+        function openCompleteModal(id) {
+            document.getElementById('completeModal').classList.add('show');
+            document.getElementById('completeTodoId').value = id;
+            document.getElementById('completeDate').value = formatDate(new Date());
+            document.getElementById('completeDate').focus();
+        }
+
+        function closeCompleteModal() {
+            document.getElementById('completeModal').classList.remove('show');
+        }
+
+        async function handleCompleteSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('completeTodoId').value;
+            const actualDate = document.getElementById('completeDate').value;
+
+            if (!actualDate) {
+                alert('请选择完成日期');
+                return;
+            }
+
+            let todos = getCurrentTodos();
+            const todo = todos.find(t => t.id == id);
+            if (todo) {
+                todo.actualDate = actualDate;
+                setCurrentTodos(todos);
+                await saveData();
+                renderTable();
+                renderStats();
+                checkWarnings();
+                closeCompleteModal();
+            }
+        }
+
+        loadData();
+
+        // 返回顶部功能
+        window.addEventListener('scroll', function() {
+            const backToTopBtn = document.getElementById('backToTop');
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('show');
+            } else {
+                backToTopBtn.classList.remove('show');
+            }
+        });
+
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+
+        function updateFilterMonthOptions() {
+            const todos = getCurrentTodos();
+            const monthSelect = document.getElementById('filterMonth');
+            const months = new Set();
+            
+            todos.forEach(todo => {
+                if (todo.planDate) {
+                    const month = todo.planDate.substring(0, 7);
+                    months.add(month);
+                }
+            });
+            
+            const sortedMonths = Array.from(months).sort().reverse();
+            const currentValue = monthSelect.value;
+            
+            monthSelect.innerHTML = '<option value="">全部月份</option>';
+            sortedMonths.forEach(month => {
+                const option = document.createElement('option');
+                option.value = month;
+                option.textContent = month;
+                monthSelect.appendChild(option);
+            });
+            
+            if (sortedMonths.includes(currentValue)) {
+                monthSelect.value = currentValue;
+            }
+        }
+
+        function downloadTemplate() {
+            const wb = XLSX.utils.book_new();
+            const ws_data = [
+                ['归属部门', '事项', '计划完成时间', '实际完成时间'],
+                ['工程', '示例任务1', '2024-01-15', ''],
+                ['成本,设计', '示例任务2（多部门用逗号分隔）', '2024-01-20', '2024-01-19'],
+                ['营销', '示例任务3', '2024-01-25', '2024-01-28']
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            ws['!cols'] = [
+                { wch: 20 },
+                { wch: 40 },
+                { wch: 15 },
+                { wch: 15 }
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, '待办事项模板');
+            XLSX.writeFile(wb, '待办事项导入模板.xlsx');
+        }
+
+        async function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!isAdmin) {
+                alert('只有管理员可以导入数据');
+                event.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                    if (jsonData.length < 2) {
+                        alert('导入的文件没有数据');
+                        return;
+                    }
+
+                    const headers = jsonData[0];
+                    const headerMap = {};
+                    headers.forEach((h, i) => {
+                        headerMap[h] = i;
+                    });
+
+                    const newTodos = [];
+                    let errorRows = [];
+
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (!row || row.length === 0 || !row[headerMap['事项']]) continue;
+
+                        const departmentsStr = row[headerMap['归属部门']] || '';
+                        const departments = departmentsStr.split(/[,，]/).map(d => d.trim()).filter(d => d);
+                        
+                        const planDate = row[headerMap['计划完成时间']];
+                        let planDateStr = '';
+                        
+                        if (planDate) {
+                            if (typeof planDate === 'number') {
+                                const date = XLSX.SSF.parse_date_code(planDate);
+                                planDateStr = `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
+                            } else if (typeof planDate === 'string') {
+                                if (planDate.includes('/')) {
+                                    const parts = planDate.split('/');
+                                    if (parts.length === 3) {
+                                        planDateStr = `${parts[2]}-${String(parts[0]).padStart(2, '0')}-${String(parts[1]).padStart(2, '0')}`;
+                                    }
+                                } else {
+                                    planDateStr = planDate;
+                                }
+                            }
+                        }
+
+                        const actualDate = row[headerMap['实际完成时间']];
+                        let actualDateStr = '';
+                        
+                        if (actualDate) {
+                            if (typeof actualDate === 'number') {
+                                const date = XLSX.SSF.parse_date_code(actualDate);
+                                actualDateStr = `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
+                            } else if (typeof actualDate === 'string') {
+                                if (actualDate.includes('/')) {
+                                    const parts = actualDate.split('/');
+                                    if (parts.length === 3) {
+                                        actualDateStr = `${parts[2]}-${String(parts[0]).padStart(2, '0')}-${String(parts[1]).padStart(2, '0')}`;
+                                    }
+                                } else {
+                                    actualDateStr = actualDate;
+                                }
+                            }
+                        }
+
+                        if (departments.length === 0) {
+                            errorRows.push(i + 1);
+                            continue;
+                        }
+
+                        if (!planDateStr) {
+                            errorRows.push(i + 1);
+                            continue;
+                        }
+
+                        newTodos.push({
+                            id: Date.now() + i,
+                            departments: departments,
+                            item: row[headerMap['事项']],
+                            assignee: row[headerMap['责任人']] || '',
+                            planDate: planDateStr,
+                            actualDate: actualDateStr || ''
+                        });
+                    }
+
+                    if (errorRows.length > 0) {
+                        alert(`以下行数据不完整，已跳过: 第 ${errorRows.join(', ')} 行`);
+                    }
+
+                    if (newTodos.length === 0) {
+                        alert('没有有效数据可导入');
+                        return;
+                    }
+
+                    let todos = getCurrentTodos();
+                    todos = [...todos, ...newTodos];
+                    setCurrentTodos(todos);
+                    await saveData();
+                    renderTable();
+                    renderStats();
+                    checkWarnings();
+                    alert(`成功导入 ${newTodos.length} 条数据`);
+                } catch (error) {
+                    console.error('导入失败:', error);
+                    alert('导入失败，请检查文件格式');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = '';
+        }
+
+        // 批量选择功能
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+
+            if (selectAllCheckbox.checked) {
+                checkboxes.forEach(cb => cb.checked = true);
+                selectedIds = Array.from(checkboxes).map(cb => cb.value);
+            } else {
+                checkboxes.forEach(cb => cb.checked = false);
+                selectedIds = [];
+            }
+            updateBatchActions();
+        }
+
+        function toggleRow(id) {
+            const idStr = String(id);
+            const checkbox = document.querySelector(`input[value="${idStr}"]`);
+            if (checkbox && checkbox.checked) {
+                if (!selectedIds.includes(idStr)) {
+                    selectedIds.push(idStr);
+                }
+            } else {
+                selectedIds = selectedIds.filter(i => String(i) !== idStr);
+            }
+            updateBatchActions();
+        }
+
+        function updateBatchActions() {
+            const batchActions = document.getElementById('batchActions');
+            const selectedCount = document.getElementById('selectedCount');
+            const selectAllCheckbox = document.getElementById('selectAll');
+            
+            selectedCount.textContent = selectedIds.length;
+            
+            if (selectedIds.length > 0) {
+                batchActions.classList.add('show');
+            } else {
+                batchActions.classList.remove('show');
+            }
+            
+            // 更新全选复选框状态
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            if (checkboxes.length > 0 && selectedIds.length === checkboxes.length) {
+                selectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.checked = false;
+            }
+        }
+
+        function clearSelection() {
+            selectedIds = [];
+            document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+            document.getElementById('selectAll').checked = false;
+            updateBatchActions();
+        }
+
+        async function batchDelete() {
+            if (selectedIds.length === 0) {
+                alert('请先选择要删除的事项');
+                return;
+            }
+            
+            if (confirm(`确定要删除选中的 ${selectedIds.length} 项事项吗？`)) {
+                let todos = getCurrentTodos();
+                todos = todos.filter(t => !selectedIds.includes(t.id));
+                setCurrentTodos(todos);
+                await saveData();
+                clearSelection();
+                renderTable();
+                renderStats();
+                checkWarnings();
+                alert('批量删除成功');
+            }
+        }
+
+        // 汇总统计功能
+        let summaryVisible = false;
+
+        function toggleSummaryView() {
+            summaryVisible = !summaryVisible;
+            const container = document.getElementById('summaryContainer');
+            const btn = document.getElementById('summaryBtn');
+            
+            if (summaryVisible) {
+                container.style.display = 'block';
+                btn.classList.add('active');
+                renderSummaryStats();
+            } else {
+                container.style.display = 'none';
+                btn.classList.remove('active');
+            }
+        }
+
+        function renderSummaryStats() {
+            // 获取所有项目的所有事项
+            let allTodosList = [];
+            Object.keys(allTodos).forEach(projectId => {
+                const projectTodos = allTodos[projectId] || [];
+                projectTodos.forEach(todo => {
+                    allTodosList.push({
+                        ...todo,
+                        projectId: projectId
+                    });
+                });
+            });
+
+            // 计算总统计
+            const totalCount = allTodosList.length;
+            const completedCount = allTodosList.filter(t => t.actualDate).length;
+            const overallRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+            document.getElementById('totalCount').textContent = totalCount;
+            document.getElementById('completedCount').textContent = completedCount;
+            document.getElementById('overallRate').textContent = overallRate + '%';
+
+            // 各部门统计
+            const summaryGrid = document.getElementById('summaryGrid');
+            const allDepts = ['工程', '成本', '设计', '前期', '营销', '运营'];
+            
+            summaryGrid.innerHTML = '';
+            
+            allDepts.forEach(dept => {
+                const deptTodos = allTodosList.filter(t => t.departments.includes(dept));
+                const deptCompletedCount = deptTodos.filter(t => t.actualDate).length;
+                const deptTotalCount = deptTodos.length;
+                const deptPercentage = deptTotalCount > 0 ? Math.round((deptCompletedCount / deptTotalCount) * 100) : 0;
+
+                const card = document.createElement('div');
+                card.className = 'summary-card';
+                card.innerHTML = `
+                    <div class="dept-name">${dept}</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${deptPercentage}%"></div>
+                    </div>
+                    <div class="progress-text">${deptCompletedCount}/${deptTotalCount} (${deptPercentage}%)</div>
+                `;
+                summaryGrid.appendChild(card);
+            });
+
+            // 各项目统计
+            const summaryProjects = document.getElementById('summaryProjects');
+            summaryProjects.innerHTML = '<h3>📁 各项目完成率</h3>';
+            
+            projects.forEach(project => {
+                const projectTodos = allTodos[project.id] || [];
+                const projectCompletedCount = projectTodos.filter(t => t.actualDate).length;
+                const projectTotalCount = projectTodos.length;
+                const projectPercentage = projectTotalCount > 0 ? Math.round((projectCompletedCount / projectTotalCount) * 100) : 0;
+
+                const statDiv = document.createElement('div');
+                statDiv.className = 'project-stat';
+                statDiv.innerHTML = `
+                    <span class="project-name">${project.name}</span>
+                    <span class="project-rate">${projectCompletedCount}/${projectTotalCount} (${projectPercentage}%)</span>
+                `;
+                summaryProjects.appendChild(statDiv);
+            });
+        }
+    </script>
+</body>
+</html>
