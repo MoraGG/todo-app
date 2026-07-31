@@ -8,6 +8,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+// 信任反向代理（Nginx），使 express-rate-limit 能正确获取客户端真实 IP
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
