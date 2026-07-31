@@ -50,7 +50,7 @@ app.use((req, res, next) => {
         "frame-ancestors 'self'",
         "img-src 'self' data:",
         "object-src 'none'",
-        "script-src 'self' https://cdn.sheetjs.com",
+        "script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com",
         "script-src-attr 'none'",
         "style-src 'self' 'unsafe-inline'",
         "upgrade-insecure-requests",
