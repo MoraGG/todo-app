@@ -289,11 +289,98 @@ configure_https() {
     if [[ "$SETUP_HTTPS" =~ ^[Yy]$ ]]; then
         info "配置 HTTPS 证书..."
         apt-get install -y certbot python3-certbot-nginx
-        certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$CERT_EMAIL" --redirect
-        ok "HTTPS 配置完成"
 
-        # 更新 .env 中的 ALLOWED_ORIGINS
-        sed -i "s|ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://$DOMAIN|" "$APP_DIR/.env"
+        CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
+        if [[ -f "$CERT_DIR/fullchain.pem" && -f "$CERT_DIR/privkey.pem" ]]; then
+            # 证书已存在，直接写入 todo-app 的 nginx 配置，不再让 certbot --nginx 扫描所有 server 块
+            info "检测到已存在证书: $CERT_DIR，直接写入配置"
+
+            # 在 80 server 块后面追加 443，并加入 80 重定向
+            NEW_NGINX_CONF="/etc/nginx/sites-available/$APP_NAME"
+            mv "$NEW_NGINX_CONF" "${NEW_NGINX_CONF}.bak"
+            cat > "$NEW_NGINX_CONF" << EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
+
+    # ACME 验证目录保留
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # 重定向到 HTTPS
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name $DOMAIN;
+
+    ssl_certificate $CERT_DIR/fullchain.pem;
+    ssl_certificate_key $CERT_DIR/privkey.pem;
+
+    # 安全头
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # 请求体大小限制
+    client_max_body_size 2m;
+
+    # 代理到 Node.js 应用
+    location / {
+        proxy_pass http://127.0.0.1:$APP_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 禁止访问敏感路径
+    location ~* ^/(\.env|data/|node_modules/) {
+        deny all;
+        return 404;
+    }
+
+    # 静态资源缓存
+    location ~* \.(html|css|js|ico|png|jpg|svg)$ {
+        proxy_pass http://127.0.0.1:$APP_PORT;
+        expires 1h;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+            # 清理备份
+            rm -f "${NEW_NGINX_CONF}.bak"
+
+            nginx -t
+            systemctl reload nginx
+            ok "HTTPS 配置完成（复用已有证书）"
+
+            # 更新 .env 中的 ALLOWED_ORIGINS
+            sed -i "s|ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://$DOMAIN|" "$APP_DIR/.env"
+        else
+            # 没有已有证书，正常 certbot 申请
+            certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$CERT_EMAIL" --redirect
+            ok "HTTPS 配置完成"
+
+            # 更新 .env 中的 ALLOWED_ORIGINS
+            sed -i "s|ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=https://$DOMAIN|" "$APP_DIR/.env"
+        fi
     fi
 }
 
