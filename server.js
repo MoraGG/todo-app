@@ -40,6 +40,7 @@ app.use(helmet({
         directives: {
             defaultSrc: ["'self'"],
             scriptSrc: ["'self'", "https://cdn.sheetjs.com"],
+            scriptSrcAttr: ["'none'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:"],
             connectSrc: ["'self'"]
