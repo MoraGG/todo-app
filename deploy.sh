@@ -144,6 +144,9 @@ deploy_app() {
     # 获取脚本所在目录（即项目源码目录）
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+    # 创建必要目录
+    mkdir -p "$APP_DIR/data"
+
     if [[ "$SCRIPT_DIR" == "$APP_DIR" ]]; then
         warn "已在目标目录，跳过复制"
     else
@@ -156,9 +159,6 @@ deploy_app() {
         cp "$SCRIPT_DIR/server.js" "$APP_DIR/"
         cp "$SCRIPT_DIR/package.json" "$APP_DIR/"
         cp "$SCRIPT_DIR/package-lock.json" "$APP_DIR/" 2>/dev/null || true
-
-        # 创建数据目录
-        mkdir -p "$APP_DIR/data"
     fi
 
     # 安装依赖
