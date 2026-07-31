@@ -77,7 +77,7 @@ read_config() {
     echo ""
 
     # HTTPS
-    read -p "$(echo -e ${YELLOW}'是否配置 HTTPS（Let\'s Encrypt）？[y/N]: '${NC})" SETUP_HTTPS
+    read -p "$(echo -e ${YELLOW}'是否配置 HTTPS（Let'\''s Encrypt）？[y/N]: '${NC})" SETUP_HTTPS
     SETUP_HTTPS=${SETUP_HTTPS:-n}
     echo ""
 
