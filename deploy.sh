@@ -132,8 +132,11 @@ install_system_deps() {
 create_app_user() {
     if ! id "$APP_USER" &> /dev/null; then
         info "创建应用用户: $APP_USER"
-        useradd -r -s /bin/false "$APP_USER"
+        useradd -r -m -d /home/"$APP_USER" -s /usr/sbin/nologin "$APP_USER"
     fi
+    # 确保 home 目录存在且可写（pm2 需要）
+    mkdir -p /home/"$APP_USER"/.pm2
+    chown -R "$APP_USER:$APP_USER" /home/"$APP_USER"
     ok "应用用户已就绪"
 }
 
@@ -193,15 +196,20 @@ EOF
 configure_pm2() {
     info "配置 PM2 进程管理..."
 
+    # 确保应用用户的 PM2 目录存在且可写
+    mkdir -p /home/"$APP_USER"/.pm2
+    chown -R "$APP_USER:$APP_USER" /home/"$APP_USER"/.pm2
+
     # 删除旧的 PM2 进程（如果存在）
-    pm2 delete "$PM2_NAME" 2>/dev/null || true
+    sudo -u "$APP_USER" HOME=/home/"$APP_USER" pm2 delete "$PM2_NAME" 2>/dev/null || true
 
     # 删除旧的用户数据文件以触发重新创建（使用新的 bcrypt 密码）
     rm -f "$APP_DIR/data/users.json"
 
-    # 使用专用用户启动
+    # 使用专用用户启动（通过 HOME 环境变量指定 home）
     cd "$APP_DIR"
     sudo -u "$APP_USER" \
+        HOME=/home/"$APP_USER" \
         NODE_ENV=production \
         PORT=$APP_PORT \
         ADMIN_PASSWORD=$ADMIN_PASS \
@@ -209,7 +217,7 @@ configure_pm2() {
         ALLOWED_ORIGINS="https://$DOMAIN,http://$DOMAIN" \
         pm2 start server.js --name "$PM2_NAME" --node-args="--max-old-space-size=256"
 
-    pm2 save
+    sudo -u "$APP_USER" HOME=/home/"$APP_USER" pm2 save
     pm2 startup systemd -u "$APP_USER" --hp /home/"$APP_USER" 2>/dev/null || true
 
     ok "PM2 配置完成，应用已启动"
@@ -310,10 +318,10 @@ verify_deployment() {
     sleep 2
 
     # 检查 PM2 进程
-    if pm2 describe "$PM2_NAME" &> /dev/null; then
+    if sudo -u "$APP_USER" HOME=/home/"$APP_USER" pm2 describe "$PM2_NAME" &> /dev/null; then
         ok "PM2 进程运行中"
     else
-        error "PM2 进程未运行，请检查日志: pm2 logs $PM2_NAME"
+        error "PM2 进程未运行，请检查日志: sudo -u $APP_USER HOME=/home/$APP_USER pm2 logs $PM2_NAME"
     fi
 
     # 检查本地响应
@@ -351,9 +359,9 @@ print_result() {
     echo -e "  Nginx配置: /etc/nginx/sites-available/$APP_NAME"
     echo ""
     echo -e "  常用命令:"
-    echo -e "    查看日志:  ${CYAN}pm2 logs $PM2_NAME${NC}"
-    echo -e "    重启应用:  ${CYAN}pm2 restart $PM2_NAME${NC}"
-    echo -e "    停止应用:  ${CYAN}pm2 stop $PM2_NAME${NC}"
+    echo -e "    查看日志:  ${CYAN}sudo -u $APP_USER HOME=/home/$APP_USER pm2 logs $PM2_NAME${NC}"
+    echo -e "    重启应用:  ${CYAN}sudo -u $APP_USER HOME=/home/$APP_USER pm2 restart $PM2_NAME${NC}"
+    echo -e "    停止应用:  ${CYAN}sudo -u $APP_USER HOME=/home/$APP_USER pm2 stop $PM2_NAME${NC}"
     echo -e "    更新部署:  ${CYAN}sudo bash $APP_DIR/deploy.sh${NC}"
     echo ""
     warn "请尽快登录系统修改默认密码！"
@@ -366,7 +374,7 @@ main() {
     check_root
 
     # 检查是首次部署还是更新
-    if [[ -f "$APP_DIR/server.js" ]] && pm2 describe "$PM2_NAME" &> /dev/null; then
+    if [[ -f "$APP_DIR/server.js" ]] && (sudo -u "$APP_USER" HOME=/home/"$APP_USER" pm2 describe "$PM2_NAME" &> /dev/null); then
         echo -e "${YELLOW}检测到已有部署，将执行更新...${NC}"
         echo ""
         read -p "$(echo -e ${YELLOW}'确认更新部署？[Y/n]: '${NC})" CONFIRM_UPDATE
@@ -378,7 +386,7 @@ main() {
 
         # 更新部署：保留配置，只更新代码
         info "停止应用..."
-        pm2 stop "$PM2_NAME" 2>/dev/null || true
+        sudo -u "$APP_USER" HOME=/home/"$APP_USER" pm2 stop "$PM2_NAME" 2>/dev/null || true
 
         # 重新读取配置
         read_config
