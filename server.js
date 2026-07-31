@@ -34,20 +34,30 @@ let loginAttempts = {};
 
 // ============ 安全中间件 ============
 
-// Helmet 安全头
+// Helmet 安全头（关闭 CSP，由下方手动设置，避免 helmet 版本拼接问题）
 app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "https://cdn.sheetjs.com"],
-            scriptSrcAttr: ["'none'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:"],
-            connectSrc: ["'self'"]
-        }
-    },
+    contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false
 }));
+
+// 手动设置 CSP 头，确保格式正确
+app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "font-src 'self' https: data:",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+        "img-src 'self' data:",
+        "object-src 'none'",
+        "script-src 'self' https://cdn.sheetjs.com",
+        "script-src-attr 'none'",
+        "style-src 'self' 'unsafe-inline'",
+        "upgrade-insecure-requests",
+        "connect-src 'self'"
+    ].join('; '));
+    next();
+});
 
 // CORS - 仅允许同源或指定域名
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
