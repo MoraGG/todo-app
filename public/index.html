@@ -1114,7 +1114,7 @@
                         <select id="filterMonth" onchange="filterTable()">
                             <option value="">全部月份</option>
                         </select>
-                        <select id="filterStatus" onchange="filterTable()">
+                        <select id="filterStatus" multiple size="3" onchange="filterTable()" style="height:auto;">
                             <option value="">全部状态</option>
                             <option value="pending">未完成</option>
                             <option value="warning">即将到期</option>
@@ -1793,11 +1793,12 @@
                 if (filterMonth && todo.planDate && !todo.planDate.startsWith(filterMonth)) {
                     return false;
                 }
-                if (filterStatus) {
+                const selectedStatuses = Array.from(document.getElementById('filterStatus').selectedOptions).map(o => o.value);
+                if (selectedStatuses.length > 0) {
                     const status = getTodoStatus(todo);
-                    if (filterStatus === 'pending') {
-                        if (status !== 'pending' && status !== 'warning' && status !== 'overdue') return false;
-                    } else if (filterStatus !== status) {
+                    if (selectedStatuses.includes('pending') && (status === 'pending' || status === 'warning' || status === 'overdue')) {
+                        // pass
+                    } else if (!selectedStatuses.includes(status)) {
                         return false;
                     }
                 }
