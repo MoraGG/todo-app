@@ -1114,15 +1114,14 @@
                         <select id="filterMonth" onchange="filterTable()">
                             <option value="">全部月份</option>
                         </select>
-                        <select id="filterStatus" multiple size="3" onchange="filterTable()" style="height:auto;">
-                            <option value="">全部状态</option>
-                            <option value="pending">未完成</option>
-                            <option value="warning">即将到期</option>
-                            <option value="overdue">已逾期</option>
-                            <option value="latecompleted">逾期完成</option>
-                            <option value="early">提前完成</option>
-                            <option value="completed">按时完成</option>
-                        </select>
+                        <div id="filterStatus" style="display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;" onchange="filterTable()">
+                            <label style="cursor:pointer"><input type="checkbox" value="pending" style="margin-right:2px">未完成</label>
+                            <label style="cursor:pointer"><input type="checkbox" value="warning" style="margin-right:2px">即将到期</label>
+                            <label style="cursor:pointer"><input type="checkbox" value="overdue" style="margin-right:2px">已逾期</label>
+                            <label style="cursor:pointer"><input type="checkbox" value="latecompleted" style="margin-right:2px">逾期完成</label>
+                            <label style="cursor:pointer"><input type="checkbox" value="early" style="margin-right:2px">提前完成</label>
+                            <label style="cursor:pointer"><input type="checkbox" value="completed" style="margin-right:2px">按时完成</label>
+                        </div>
                     </div>
                 </div>
                 <div class="toolbar-right">
@@ -1793,7 +1792,7 @@
                 if (filterMonth && todo.planDate && !todo.planDate.startsWith(filterMonth)) {
                     return false;
                 }
-                const selectedStatuses = Array.from(document.getElementById('filterStatus').selectedOptions).map(o => o.value);
+                const selectedStatuses = Array.from(document.querySelectorAll('#filterStatus input:checked')).map(cb => cb.value);
                 if (selectedStatuses.length > 0) {
                     const status = getTodoStatus(todo);
                     if (selectedStatuses.includes('pending') && (status === 'pending' || status === 'warning' || status === 'overdue')) {
