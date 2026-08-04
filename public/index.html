@@ -1114,14 +1114,19 @@
                         <select id="filterMonth" onchange="filterTable()">
                             <option value="">全部月份</option>
                         </select>
-                        <div id="filterStatus" style="display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;" onchange="filterTable()">
-                            <label style="cursor:pointer"><input type="checkbox" value="pending" style="margin-right:2px">未完成</label>
-                            <label style="cursor:pointer"><input type="checkbox" value="warning" style="margin-right:2px">即将到期</label>
-                            <label style="cursor:pointer"><input type="checkbox" value="overdue" style="margin-right:2px">已逾期</label>
-                            <label style="cursor:pointer"><input type="checkbox" value="latecompleted" style="margin-right:2px">逾期完成</label>
-                            <label style="cursor:pointer"><input type="checkbox" value="early" style="margin-right:2px">提前完成</label>
-                            <label style="cursor:pointer"><input type="checkbox" value="completed" style="margin-right:2px">按时完成</label>
+                        <div style="position:relative;display:inline-block;">
+                        <button type="button" id="filterStatusBtn" onclick="toggleStatusDropdown()" style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px;min-width:120px;text-align:left;">
+                            <span id="filterStatusLabel">全部状态</span> <span style="float:right">▾</span>
+                        </button>
+                        <div id="filterStatusDropdown" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:8px 0;min-width:160px;margin-top:4px;">
+                            <label style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;font-size:13px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'"><input type="checkbox" value="pending" onchange="updateStatusFilter()" style="margin-right:8px">未完成</label>
+                            <label style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;font-size:13px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'"><input type="checkbox" value="warning" onchange="updateStatusFilter()" style="margin-right:8px">即将到期</label>
+                            <label style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;font-size:13px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'"><input type="checkbox" value="overdue" onchange="updateStatusFilter()" style="margin-right:8px">已逾期</label>
+                            <label style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;font-size:13px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'"><input type="checkbox" value="latecompleted" onchange="updateStatusFilter()" style="margin-right:8px">逾期完成</label>
+                            <label style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;font-size:13px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'"><input type="checkbox" value="early" onchange="updateStatusFilter()" style="margin-right:8px">提前完成</label>
+                            <label style="display:flex;align-items:center;padding:6px 14px;cursor:pointer;font-size:13px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'"><input type="checkbox" value="completed" onchange="updateStatusFilter()" style="margin-right:8px">按时完成</label>
                         </div>
+                    </div>
                     </div>
                 </div>
                 <div class="toolbar-right">
@@ -1791,7 +1796,7 @@
                 if (filterMonth && todo.planDate && !todo.planDate.startsWith(filterMonth)) {
                     return false;
                 }
-                const selectedStatuses = Array.from(document.querySelectorAll('#filterStatus input:checked')).map(cb => cb.value);
+                const selectedStatuses = Array.from(document.querySelectorAll('#filterStatusDropdown input:checked')).map(cb => cb.value);
                 if (selectedStatuses.length > 0) {
                     const status = getTodoStatus(todo);
                     if (selectedStatuses.includes('pending') && (status === 'pending' || status === 'warning' || status === 'overdue')) {
@@ -2645,6 +2650,28 @@
                 summaryProjects.appendChild(statDiv);
             });
         }
+
+// Status dropdown
+function toggleStatusDropdown() {
+    var dd = document.getElementById('filterStatusDropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+function updateStatusFilter() {
+    var selected = Array.from(document.querySelectorAll('#filterStatusDropdown input:checked')).map(cb => cb.value);
+    var label = document.getElementById('filterStatusLabel');
+    if (selected.length === 0) label.textContent = '全部状态';
+    else if (selected.length === 1) label.textContent = document.querySelector('#filterStatusDropdown input[value="' + selected[0] + '"]').parentElement.textContent.trim();
+    else label.textContent = '已选 ' + selected.length + ' 项';
+    filterTable();
+}
+document.addEventListener('click', function(e) {
+    var btn = document.getElementById('filterStatusBtn');
+    var dd = document.getElementById('filterStatusDropdown');
+    if (btn && dd && !btn.contains(e.target) && !dd.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});
+
     </script>
 </body>
 </html>
