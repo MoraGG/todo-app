@@ -1104,11 +1104,11 @@
                         <input type="text" id="searchText" placeholder="搜索事项..." onkeyup="filterTable()">
                         <select id="filterDept" onchange="filterTable()">
                             <option value="">全部部门</option>
-                            <option value="工程">工程</option>
-                            <option value="成本">成本</option>
+                            <option value="产品">产品</option>
+                            <option value="研发">研发</option>
                             <option value="设计">设计</option>
-                            <option value="前期">前期</option>
-                            <option value="营销">营销</option>
+                            <option value="数据">数据</option>
+                            <option value="市场">市场</option>
                             <option value="运营">运营</option>
                         </select>
                         <select id="filterMonth" onchange="filterTable()">
@@ -1219,19 +1219,19 @@
                     <label>归属部门（可多选）</label>
                     <div class="checkbox-group">
                         <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="工程"> 工程
+                            <input type="checkbox" name="dept" value="产品"> 产品
                         </label>
                         <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="成本"> 成本
+                            <input type="checkbox" name="dept" value="研发"> 研发
                         </label>
                         <label class="checkbox-item">
                             <input type="checkbox" name="dept" value="设计"> 设计
                         </label>
                         <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="前期"> 前期
+                            <input type="checkbox" name="dept" value="数据"> 数据
                         </label>
                         <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="营销"> 营销
+                            <input type="checkbox" name="dept" value="市场"> 市场
                         </label>
                         <label class="checkbox-item">
                             <input type="checkbox" name="dept" value="运营"> 运营
@@ -1760,7 +1760,7 @@
             let pendingTodos = todos.filter(t => !t.actualDate);
 
             // 按部门排序，部门内按计划完成时间从早到晚排序
-            const deptOrder = { '工程': 0, '成本': 1, '设计': 2, '前期': 3, '营销': 4, '运营': 5 };
+            const deptOrder = { '产品': 0, '研发': 1, '设计': 2, '数据': 3, '市场': 4, '运营': 5 };
             
             pendingTodos.sort((a, b) => {
                 // 首先按第一个部门排序
@@ -1875,7 +1875,7 @@
         function renderStats() {
             const todos = getCurrentTodos();
             const statsGrid = document.getElementById('statsGrid');
-            const allDepts = ['工程', '成本', '设计', '前期', '营销', '运营'];
+            const allDepts = ['产品', '研发', '设计', '数据', '市场', '运营'];
             const selectedMonth = document.getElementById('statsMonth').value;
             
             updateStatsMonthOptions();
@@ -1906,13 +1906,24 @@
             });
         }
 
+        // 安全的本地零点解析：'YYYY-MM-DD' 按本地日期构造，避免被当作 UTC 解析后产生时区偏移
+        function parseDate(str) {
+            if (!str || typeof str !== 'string') return null;
+            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str.trim());
+            if (!m) return null;
+            const y = +m[1], mo = +m[2], d = +m[3];
+            if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+            const dt = new Date(y, mo - 1, d); // 本地零点，无时区歧义
+            return isNaN(dt.getTime()) ? null : dt;
+        }
+
         function getTodoStatus(todo) {
-            if (todo.actualDate) {
-                const planDate = new Date(todo.planDate);
-                const actualDate = new Date(todo.actualDate);
-                planDate.setHours(0, 0, 0, 0);
-                actualDate.setHours(0, 0, 0, 0);
-                
+            const actualDate = parseDate(todo.actualDate);
+            if (actualDate) {
+                const planDate = parseDate(todo.planDate);
+                // 计划日期缺失/非法时，已完成项无法判定早晚，统一归为按时完成
+                if (!planDate) return 'completed';
+
                 if (actualDate < planDate) {
                     return 'early';
                 } else if (actualDate > planDate) {
@@ -1921,10 +1932,12 @@
                 return 'completed';
             }
 
+            const planDate = parseDate(todo.planDate);
+            // 计划日期缺失/非法时无法计算剩余天数，视为未完成（待处理）
+            if (!planDate) return 'pending';
+
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const planDate = new Date(todo.planDate);
-            planDate.setHours(0, 0, 0, 0);
 
             const diffDays = Math.ceil((planDate - today) / (1000 * 60 * 60 * 24));
 
@@ -1970,8 +1983,8 @@
             todos.forEach(todo => {
                 if (todo.actualDate) return;
 
-                const planDate = new Date(todo.planDate);
-                planDate.setHours(0, 0, 0, 0);
+                const planDate = parseDate(todo.planDate);
+                if (!planDate) return;
                 const diffDays = Math.ceil((planDate - today) / (1000 * 60 * 60 * 24));
 
                 if (diffDays < 0) {
@@ -2351,9 +2364,9 @@
             const wb = XLSX.utils.book_new();
             const ws_data = [
                 ['归属部门', '事项', '责任人', '计划完成时间', '实际完成时间'],
-                ['工程', '示例任务1', '张三', '2024-01-15', ''],
-                ['成本,设计', '示例任务2（多部门用逗号分隔）', '李四', '2024-01-20', '2024-01-19'],
-                ['营销', '示例任务3', '王五', '2024-01-25', '2024-01-28']
+                ['产品', '示例任务1', '张三', '2024-01-15', ''],
+                ['研发,设计', '示例任务2（多部门用逗号分隔）', '李四', '2024-01-20', '2024-01-19'],
+                ['市场', '示例任务3', '王五', '2024-01-25', '2024-01-28']
             ];
             const ws = XLSX.utils.aoa_to_sheet(ws_data);
             ws['!cols'] = [
@@ -2609,7 +2622,7 @@
 
             // 各部门统计
             const summaryGrid = document.getElementById('summaryGrid');
-            const allDepts = ['工程', '成本', '设计', '前期', '营销', '运营'];
+            const allDepts = ['产品', '研发', '设计', '数据', '市场', '运营'];
             
             summaryGrid.innerHTML = '';
             
