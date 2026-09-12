@@ -1105,6 +1105,7 @@
                         <select id="filterDept" onchange="filterTable()">
                             <option value="">全部部门</option>
                         </select>
+                        <button type="button" id="manageDeptBtn" onclick="openDeptManage()" style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px;display:none;" title="管理部门（重命名 / 删除）">⚙ 部门</button>
                         <select id="filterMonth" onchange="filterTable()">
                             <option value="">全部月份</option>
                         </select>
@@ -1238,6 +1239,26 @@
                     <button type="submit" class="btn btn-primary">保存</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="modal" id="deptManageModal">
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+                <h2>管理部门</h2>
+                <button class="close-btn" onclick="closeDeptManage()">&times;</button>
+            </div>
+            <div class="modal-form">
+                <p style="margin:0 0 12px;color:#888;font-size:13px;">重命名将同步更新所有项目中的相关事项；删除仅移除部门归属（事项本身保留）。</p>
+                <div id="deptManageList" style="display:flex;flex-direction:column;gap:8px;"></div>
+                <div style="margin-top:14px;font-size:13px;">
+                    <input type="text" id="newDeptManageInput" placeholder="输入新部门名后点“添加”" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:60%;">
+                    <button type="button" onclick="addManageDept()" style="padding:5px 12px;border:1px solid #ddd;border-radius:6px;background:#f7f7f7;cursor:pointer;font-size:13px;">添加部门</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeptManage()">关闭</button>
+            </div>
         </div>
     </div>
 
@@ -1672,11 +1693,13 @@
                 if (isAdmin) {
                     document.getElementById('adminControls').style.display = 'block';
                     document.getElementById('editControls').style.display = 'block';
+                    document.getElementById('manageDeptBtn').style.display = 'inline-block';
                     document.getElementById('readonlyNotice').style.display = 'none';
                     document.getElementById('tableContainer').classList.remove('readonly');
                 } else {
                     document.getElementById('adminControls').style.display = 'none';
                     document.getElementById('editControls').style.display = 'none';
+                    document.getElementById('manageDeptBtn').style.display = 'none';
                     document.getElementById('readonlyNotice').style.display = 'block';
                     document.getElementById('tableContainer').classList.add('readonly');
                 }
@@ -1687,6 +1710,7 @@
                 document.getElementById('changePasswordBtn').style.display = 'none';
                 document.getElementById('adminControls').style.display = 'none';
                 document.getElementById('editControls').style.display = 'none';
+                document.getElementById('manageDeptBtn').style.display = 'none';
                 document.getElementById('readonlyNotice').style.display = 'none';
                 document.getElementById('tableContainer').classList.remove('readonly');
             }
@@ -1766,6 +1790,96 @@
             const selected = Array.from(document.querySelectorAll('input[name="dept"]:checked')).map(cb => cb.value);
             if (!selected.includes(name)) selected.push(name);
             renderDeptCheckboxes(selected);
+        }
+
+        // 部门管理：列出所有部门（跨项目），支持重命名 / 删除
+        function getAllTodosFlat() {
+            const arr = [];
+            for (const pid in allTodos) arr.push(...(allTodos[pid] || []));
+            return arr;
+        }
+
+        function openDeptManage() {
+            if (!isAdmin) { alert('只有管理员可以管理部门'); return; }
+            const depts = getDistinctDepts(getAllTodosFlat());
+            const container = document.getElementById('deptManageList');
+            if (depts.length === 0) {
+                container.innerHTML = '<div style="color:#999;font-size:13px;padding:6px 0;">暂无部门，可在新增事项时添加。</div>';
+            } else {
+                container.innerHTML = depts.map(d =>
+                    '<div class="dept-manage-row" data-dept="' + esc(d) + '" style="display:flex;align-items:center;gap:8px;">' +
+                        '<input type="text" class="dept-name-input" value="' + esc(d) + '" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">' +
+                        '<button type="button" class="btn btn-primary btn-sm" onclick="renameDeptFromRow(this)">重命名</button>' +
+                        '<button type="button" class="btn btn-danger btn-sm" onclick="deleteDeptFromRow(this)">删除</button>' +
+                    '</div>'
+                ).join('');
+            }
+            document.getElementById('deptManageModal').classList.add('show');
+        }
+
+        function closeDeptManage() {
+            document.getElementById('deptManageModal').classList.remove('show');
+        }
+
+        async function renameDeptFromRow(btn) {
+            const row = btn.closest('.dept-manage-row');
+            const oldName = row.dataset.dept;
+            const newName = (row.querySelector('.dept-name-input').value || '').trim();
+            if (!newName) { alert('部门名称不能为空'); return; }
+            if (newName === oldName) { return; }
+            let changed = 0;
+            for (const pid in allTodos) {
+                (allTodos[pid] || []).forEach(t => {
+                    if (!t.departments) return;
+                    const idx = t.departments.indexOf(oldName);
+                    if (idx !== -1) {
+                        t.departments.splice(idx, 1);
+                        if (!t.departments.includes(newName)) t.departments.splice(idx, 0, newName);
+                        changed++;
+                    }
+                });
+            }
+            const ci = customDepts.indexOf(oldName);
+            if (ci !== -1) { customDepts.splice(ci, 1); if (!customDepts.includes(newName)) customDepts.push(newName); }
+            await saveData();
+            openDeptManage();
+            renderTable(); renderStats(); renderSummaryStats();
+            alert('已将“' + oldName + '”重命名为“' + newName + '”（影响 ' + changed + ' 条事项）');
+        }
+
+        async function deleteDeptFromRow(btn) {
+            const row = btn.closest('.dept-manage-row');
+            const name = row.dataset.dept;
+            if (!confirm('确定删除部门“' + name + '”吗？该部门将从所有事项中移除（事项本身保留）。')) return;
+            let changed = 0;
+            for (const pid in allTodos) {
+                (allTodos[pid] || []).forEach(t => {
+                    if (!t.departments) return;
+                    const idx = t.departments.indexOf(name);
+                    if (idx !== -1) { t.departments.splice(idx, 1); changed++; }
+                });
+            }
+            const ci = customDepts.indexOf(name);
+            if (ci !== -1) customDepts.splice(ci, 1);
+            await saveData();
+            openDeptManage();
+            renderTable(); renderStats(); renderSummaryStats();
+            alert('已删除部门“' + name + '”（影响 ' + changed + ' 条事项）');
+        }
+
+        function addManageDept() {
+            const input = document.getElementById('newDeptManageInput');
+            const name = (input.value || '').trim();
+            if (!name) return;
+            const exists = getDistinctDepts(getAllTodosFlat()).includes(name) || customDepts.includes(name);
+            if (!exists) {
+                customDepts.push(name);
+                const selected = Array.from(document.querySelectorAll('input[name="dept"]:checked')).map(cb => cb.value);
+                if (!selected.includes(name)) selected.push(name);
+                renderDeptCheckboxes(selected);
+            }
+            input.value = '';
+            openDeptManage();
         }
 
         function renderTable() {
