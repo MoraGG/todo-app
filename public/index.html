@@ -1104,12 +1104,6 @@
                         <input type="text" id="searchText" placeholder="搜索事项..." onkeyup="filterTable()">
                         <select id="filterDept" onchange="filterTable()">
                             <option value="">全部部门</option>
-                            <option value="产品">产品</option>
-                            <option value="研发">研发</option>
-                            <option value="设计">设计</option>
-                            <option value="数据">数据</option>
-                            <option value="市场">市场</option>
-                            <option value="运营">运营</option>
                         </select>
                         <select id="filterMonth" onchange="filterTable()">
                             <option value="">全部月份</option>
@@ -1217,25 +1211,10 @@
                 <input type="hidden" id="todoId">
                 <div class="form-group">
                     <label>归属部门（可多选）</label>
-                    <div class="checkbox-group">
-                        <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="产品"> 产品
-                        </label>
-                        <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="研发"> 研发
-                        </label>
-                        <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="设计"> 设计
-                        </label>
-                        <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="数据"> 数据
-                        </label>
-                        <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="市场"> 市场
-                        </label>
-                        <label class="checkbox-item">
-                            <input type="checkbox" name="dept" value="运营"> 运营
-                        </label>
+                    <div class="checkbox-group" id="deptCheckboxes"></div>
+                    <div style="margin-top:8px;display:flex;gap:6px;">
+                        <input type="text" id="newDeptInput" placeholder="输入新部门名后点“添加”" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                        <button type="button" onclick="addNewDept()" style="padding:5px 12px;border:1px solid #ddd;border-radius:6px;background:#f7f7f7;cursor:pointer;font-size:13px;">添加部门</button>
                     </div>
                 </div>
                 <div class="form-group">
@@ -1745,6 +1724,50 @@
             return date.toISOString().split('T')[0];
         }
 
+        // 动态派生部门列表（按首次出现顺序），避免硬编码部门名
+        let customDepts = [];
+        function getDistinctDepts(todos) {
+            const seen = [];
+            const set = new Set();
+            const add = (d) => { if (d && !set.has(d)) { set.add(d); seen.push(d); } };
+            (todos || []).forEach(t => (t.departments || []).forEach(add));
+            customDepts.forEach(add);
+            return seen;
+        }
+        function esc(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        function buildDeptOrder(todos) {
+            const map = {};
+            getDistinctDepts(todos).forEach((d, i) => { map[d] = i; });
+            return map;
+        }
+        function populateDeptFilter() {
+            const sel = document.getElementById('filterDept');
+            const current = sel.value;
+            const depts = getDistinctDepts(getCurrentTodos());
+            sel.innerHTML = '<option value="">全部部门</option>' + depts.map(d => '<option value="' + esc(d) + '">' + esc(d) + '</option>').join('');
+            if (depts.includes(current)) sel.value = current;
+        }
+        function renderDeptCheckboxes(selected) {
+            const container = document.getElementById('deptCheckboxes');
+            const depts = getDistinctDepts(getCurrentTodos());
+            const sel = new Set(selected || []);
+            container.innerHTML = depts.map(d =>
+                '<label class="checkbox-item"><input type="checkbox" name="dept" value="' + esc(d) + '"' + (sel.has(d) ? ' checked' : '') + '> ' + esc(d) + '</label>'
+            ).join('');
+        }
+        function addNewDept() {
+            const input = document.getElementById('newDeptInput');
+            const name = (input.value || '').trim();
+            if (!name) return;
+            if (!customDepts.includes(name)) customDepts.push(name);
+            input.value = '';
+            const selected = Array.from(document.querySelectorAll('input[name="dept"]:checked')).map(cb => cb.value);
+            if (!selected.includes(name)) selected.push(name);
+            renderDeptCheckboxes(selected);
+        }
+
         function renderTable() {
             const tbody = document.getElementById('todoBody');
             const searchText = document.getElementById('searchText').value.toLowerCase();
@@ -1755,12 +1778,13 @@
             
             // 更新月份筛选选项
             updateFilterMonthOptions();
+            populateDeptFilter();
 
             let completedTodos = todos.filter(t => t.actualDate);
             let pendingTodos = todos.filter(t => !t.actualDate);
 
             // 按部门排序，部门内按计划完成时间从早到晚排序
-            const deptOrder = { '产品': 0, '研发': 1, '设计': 2, '数据': 3, '市场': 4, '运营': 5 };
+            const deptOrder = buildDeptOrder(todos);
             
             pendingTodos.sort((a, b) => {
                 // 首先按第一个部门排序
@@ -1875,7 +1899,7 @@
         function renderStats() {
             const todos = getCurrentTodos();
             const statsGrid = document.getElementById('statsGrid');
-            const allDepts = ['产品', '研发', '设计', '数据', '市场', '运营'];
+            const allDepts = getDistinctDepts(todos);
             const selectedMonth = document.getElementById('statsMonth').value;
             
             updateStatsMonthOptions();
@@ -2041,12 +2065,11 @@
                     document.getElementById('planDate').value = todo.planDate;
                     document.getElementById('actualDate').value = todo.actualDate;
 
-                    document.querySelectorAll('input[name="dept"]').forEach(cb => {
-                        cb.checked = todo.departments.includes(cb.value);
-                    });
+                    renderDeptCheckboxes(todo.departments);
                 }
             } else {
                 document.getElementById('modalTitle').textContent = '添加待办事项';
+                renderDeptCheckboxes([]);
             }
         }
 
@@ -2622,7 +2645,7 @@
 
             // 各部门统计
             const summaryGrid = document.getElementById('summaryGrid');
-            const allDepts = ['产品', '研发', '设计', '数据', '市场', '运营'];
+            const allDepts = getDistinctDepts(allTodosList);
             
             summaryGrid.innerHTML = '';
             
